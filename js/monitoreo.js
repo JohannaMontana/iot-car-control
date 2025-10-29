@@ -1,6 +1,6 @@
 class MonitoreoManager {
     constructor() {
-        this.backendUrl = 'http://54.147.92.50:5500';
+       this.backendUrl = 'https://corsproxy.io/?' + encodeURIComponent('http://54.147.92.50:5500')
         this.estadoApp = {
             conectado: false,
             metricas: {},

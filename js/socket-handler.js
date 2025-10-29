@@ -1,5 +1,5 @@
 // Configuración global
-const BACKEND_URL = 'http://54.147.92.50:5500';
+const BACKEND_URL = 'https://corsproxy.io/?' + encodeURIComponent('http://54.147.92.50:5500')
 
 class SocketHandler {
     constructor() {
