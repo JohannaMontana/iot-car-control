@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control - IoT Carrito</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="css/common.css" rel="stylesheet">
+    <link href="css/control.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col text-center">
+                <h1 class="gradient-text fw-bold">
+                    <i class="fas fa-robot me-3"></i>IoT CAR CONTROL
+                </h1>
+                <p class="text-muted">
+                    <span class="estado-conexion">
+                        <span class="status-indicator status-offline"></span>
+                        Conectando al servidor...
+                    </span>
+                    <span class="mx-3">|</span>
+                    <a href="monitoreo.html" class="text-decoration-none" style="color: var(--accent-pink);">
+                        <i class="fas fa-chart-line me-1"></i>Panel de Monitoreo
+                    </a>
+                </p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Panel de Control Principal -->
+            <div class="col-lg-8">
+                <div class="glass-panel">
+                    <h4 class="mb-4">
+                        <i class="fas fa-gamepad me-2" style="color: var(--accent-pink);"></i>
+                        Control de Movimiento
+                    </h4>
+                    
+                    <!-- Grid de Controles -->
+                    <div class="control-grid mb-4">
+                        <!-- Fila Superior -->
+                        <button class="control-btn btn-up-left" onclick="controlManager.moverCarrito(5)" title="Vuelta Adelante Izquierda">
+                            <i class="fas fa-arrow-turn-up"></i>
+                            <small>Adelante<br>Izquierda</small>
+                        </button>
+                        <button class="control-btn btn-up" onclick="controlManager.moverCarrito(1)" title="Adelante">
+                            <i class="fas fa-arrow-up"></i>
+                            <small>Adelante</small>
+                        </button>
+                        <button class="control-btn btn-up-right" onclick="controlManager.moverCarrito(4)" title="Vuelta Adelante Derecha">
+                            <i class="fas fa-arrow-turn-up fa-flip-horizontal"></i>
+                            <small>Adelante<br>Derecha</small>
+                        </button>
+
+                        <!-- Fila Central -->
+                        <button class="control-btn btn-left" onclick="controlManager.moverCarrito(9)" title="Giro 90° Izquierda">
+                            <i class="fas fa-rotate-left"></i>
+                            <small>Giro<br>Izquierda</small>
+                        </button>
+                        <button class="control-btn btn-center" onclick="controlManager.detenerCarrito()" title="Detener" style="background: linear-gradient(145deg, #ff4444, #cc0000);">
+                            <i class="fas fa-stop"></i>
+                            <small>Detener</small>
+                        </button>
+                        <button class="control-btn btn-right" onclick="controlManager.moverCarrito(8)" title="Giro 90° Derecha">
+                            <i class="fas fa-rotate-right"></i>
+                            <small>Giro<br>Derecha</small>
+                        </button>
+
+                        <!-- Fila Inferior -->
+                        <button class="control-btn btn-down-left" onclick="controlManager.moverCarrito(7)" title="Vuelta Atrás Izquierda">
+                            <i class="fas fa-arrow-turn-down"></i>
+                            <small>Atrás<br>Izquierda</small>
+                        </button>
+                        <button class="control-btn btn-down" onclick="controlManager.moverCarrito(2)" title="Atrás">
+                            <i class="fas fa-arrow-down"></i>
+                            <small>Atrás</small>
+                        </button>
+                        <button class="control-btn btn-down-right" onclick="controlManager.moverCarrito(6)" title="Vuelta Atrás Derecha">
+                            <i class="fas fa-arrow-turn-down fa-flip-horizontal"></i>
+                            <small>Atrás<br>Derecha</small>
+                        </button>
+                    </div>
+
+                    <!-- Controles Especiales -->
+                    <div class="row text-center">
+                        <div class="col-md-4 mb-3">
+                            <button class="control-btn" onclick="controlManager.moverCarrito(10)" style="width: 120px; height: 120px;" title="Giro 360° Derecha">
+                                <i class="fas fa-sync"></i>
+                                <small>360°<br>Derecha</small>
+                            </button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button class="control-btn" onclick="controlManager.moverCarrito(11)" style="width: 120px; height: 120px;" title="Giro 360° Izquierda">
+                                <i class="fas fa-sync fa-flip-horizontal"></i>
+                                <small>360°<br>Izquierda</small>
+                            </button>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button class="control-btn" onclick="controlManager.simularObstaculo()" style="width: 120px; height: 120px; background: linear-gradient(145deg, #ff9500, #ff5500);" title="Simular Obstáculo">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <small>Simular<br>Obstáculo</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Configuración -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text" style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                                    <i class="fas fa-clock"></i>
+                                </span>
+                                <input type="number" id="duracionMovimiento" class="form-control" 
+                                       style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+                                       value="5" min="1" max="30" placeholder="Duración (segundos)">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn w-100" onclick="controlManager.reanudarEjecucion()" 
+                                    style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); color: white;">
+                                <i class="fas fa-play me-2"></i>Reanudar Ejecución
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+<!-- Editor de DEMOS -->
+<div class="glass-panel" id="editorDemo" style="display: none;">
+    <h4 class="mb-3">
+        <i class="fas fa-edit me-2" style="color: var(--accent-cyan);"></i>
+        Editor de Secuencia DEMO
+    </h4>
+    
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <input type="text" id="demoNombre" class="form-control" 
+                   style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+                   placeholder="Nombre de la demo">
+        </div>
+        <div class="col-md-6">
+            <input type="text" id="demoDescripcion" class="form-control" 
+                   style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+                   placeholder="Descripción (opcional)">
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label text-muted">Movimientos de la secuencia:</label>
+        <div id="movimientosDemo" class="border rounded p-3 mb-3" 
+             style="background: rgba(255,255,255,0.05); min-height: 100px; max-height: 200px; overflow-y: auto;">
+            <div class="text-center text-muted py-3">
+                Agrega movimientos desde los botones de abajo
+            </div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted" id="contadorMovimientos">0 movimientos</small>
+            <div class="btn-group">
+                <button class="btn btn-sm" onclick="demoManager.ocultarEditor()" 
+                        style="background: #ff4444; color: white;">
+                    <i class="fas fa-times me-1"></i>Cancelar
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.guardarDemo()" 
+                        style="background: var(--accent-cyan); color: white;">
+                    <i class="fas fa-save me-1"></i>Guardar Demo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+                <!-- Secuencias DEMO -->
+                <div class="glass-panel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">
+                            <i class="fas fa-play-circle me-2" style="color: var(--accent-pink);"></i>
+                            Secuencias DEMO
+                        </h4>
+                        <div class="btn-group">
+                            <button class="btn btn-sm" onclick="demoManager.cargarDemos()" 
+                                    style="background: rgba(255,255,255,0.1); color: var(--text-light);">
+                                <i class="fas fa-sync me-1"></i>Actualizar
+                            </button>
+                            <button class="btn btn-sm" onclick="demoManager.mostrarEditor()" 
+                                    style="background: var(--accent-cyan); color: white;">
+                                <i class="fas fa-plus me-1"></i>Nueva Demo
+                            </button>
+                        </div>
+                    </div>
+                    <div id="listaDemos">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Cargando secuencias...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel Lateral -->
+            <div class="col-lg-4">
+                <!-- Estado del Sistema -->
+                <div class="glass-panel">
+                    <h5 class="mb-3">
+                        <i class="fas fa-microchip me-2" style="color: var(--accent-pink);"></i>
+                        Estado del Sistema
+                    </h5>
+                    
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Conexión Servidor:</span>
+                            <span id="estadoConexion" class="badge" style="background: var(--accent-pink);">
+                                <i class="fas fa-wifi me-1"></i>Conectando...
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6>Último Movimiento:</h6>
+                        <div id="ultimoMovimiento" class="movement-item">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-robot"></i><br>
+                                Esperando movimiento...
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <h6>Alertas Activas:</h6>
+                        <div id="alertasActivas" class="text-success">
+                            <i class="fas fa-check-circle me-1"></i>Sin alertas
+                        </div>
+                    </div>
+
+                    <button class="btn w-100 mt-3" onclick="controlManager.actualizarEstado()" 
+                            style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                        <i class="fas fa-refresh me-2"></i>Actualizar Estado
+                    </button>
+                </div>
+
+                <!-- Historial de Movimientos -->
+                <div class="glass-panel">
+                    <h5 class="mb-3">
+                        <i class="fas fa-history me-2" style="color: var(--accent-pink);"></i>
+                        Movimientos Recientes
+                    </h5>
+                    <div id="historialMovimientos" class="movement-history">
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-robot fa-2x mb-2"></i><br>
+                            No hay movimientos recientes
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel de Control DEMO -->
+            <!-- Panel de Control DEMO COMPLETO -->
+<div class="glass-panel">
+    <h5 class="mb-3">
+        <i class="fas fa-sliders-h me-2" style="color: var(--accent-cyan);"></i>
+        Control DEMO - Agregar Movimientos
+    </h5>
+    
+    <div class="mb-3">
+        <label class="form-label text-muted">Duración por movimiento (segundos):</label>
+        <input type="number" id="duracionMovimientoDemo" class="form-control" 
+               style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+               value="3" min="1" max="30">
+    </div>
+
+    <!-- Movimientos Básicos -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <small class="text-muted mb-2 d-block">Movimientos Básicos:</small>
+            <div class="btn-group w-100 mb-2">
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(1)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-up me-1"></i>Adelante
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(2)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-down me-1"></i>Atrás
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(3)" 
+                        style="background: rgba(255,45,149,0.3); color: white; border: 1px solid var(--accent-pink);">
+                    <i class="fas fa-stop me-1"></i>Detener
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Giros -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <small class="text-muted mb-2 d-block">Giros:</small>
+            <div class="btn-group w-100 mb-2">
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(8)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-redo me-1"></i>Giro 90° Der
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(9)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-undo me-1"></i>Giro 90° Izq
+                </button>
+            </div>
+            <div class="btn-group w-100">
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(10)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-sync me-1"></i>Giro 360° Der
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(11)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-sync fa-flip-horizontal me-1"></i>Giro 360° Izq
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vueltas -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <small class="text-muted mb-2 d-block">Vueltas Adelante:</small>
+            <div class="btn-group w-100 mb-2">
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(4)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-turn-up me-1"></i>Vuelta Der
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(5)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-turn-up me-1"></i>Vuelta Izq
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <small class="text-muted mb-2 d-block">Vueltas Atrás:</small>
+            <div class="btn-group w-100">
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(6)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-turn-down me-1"></i>Vuelta Der
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarMovimiento(7)" 
+                        style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
+                    <i class="fas fa-arrow-turn-down me-1"></i>Vuelta Izq
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div class="row mt-3">
+        <div class="col-12">
+            <small class="text-muted mb-2 d-block">Acciones Rápidas:</small>
+            <div class="btn-group w-100">
+                <button class="btn btn-sm" onclick="demoManager.agregarSecuenciaCircuito()" 
+                        style="background: rgba(138, 43, 226, 0.3); color: white; border: 1px solid var(--accent-purple);">
+                    <i class="fas fa-square me-1"></i>Circuito Cuadrado
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.agregarSecuenciaZigZag()" 
+                        style="background: rgba(0, 255, 255, 0.3); color: white; border: 1px solid var(--accent-cyan);">
+                    <i class="fas fa-wave-square me-1"></i>Zig-Zag
+                </button>
+                <button class="btn btn-sm" onclick="demoManager.limpiarMovimientos()" 
+                        style="background: rgba(255, 68, 68, 0.3); color: white; border: 1px solid #ff4444;">
+                    <i class="fas fa-broom me-1"></i>Limpiar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="js/socket-handler.js"></script>
+    <script src="js/demos.js"></script>
+    <script src="js/control.js"></script>
+</body>
+</html>

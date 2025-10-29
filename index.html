@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Carrito - Control Inteligente</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-bg: #0a0a0a;
+            --accent-pink: #ff2d95;
+            --accent-cyan: #00ffff;
+            --accent-purple: #8a2be2;
+            --text-light: #ffffff;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--primary-bg) 0%, #2d1b69 100%);
+            color: var(--text-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .main-container {
+            text-align: center;
+            max-width: 800px;
+            padding: 40px 20px;
+        }
+
+        .title {
+            background: linear-gradient(45deg, var(--accent-pink), var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #b0b0b0;
+            font-size: 1.2rem;
+            margin-bottom: 50px;
+        }
+
+        .car-container {
+            margin: 50px auto;
+            position: relative;
+            width: 300px;
+            height: 200px;
+        }
+
+        .car-body {
+            width: 250px;
+            height: 100px;
+            background: linear-gradient(145deg, #8a2be2, #6a1b9a);
+            border-radius: 20px 20px 10px 10px;
+            position: relative;
+            margin: 0 auto;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4);
+        }
+
+        .car-top {
+            width: 180px;
+            height: 70px;
+            background: linear-gradient(145deg, #ff2d95, #d40078);
+            border-radius: 15px 15px 0 0;
+            position: absolute;
+            top: -35px;
+            left: 35px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .wheel {
+            width: 40px;
+            height: 40px;
+            background: #1a1a1a;
+            border-radius: 50%;
+            position: absolute;
+            bottom: -10px;
+            border: 3px solid #333;
+            animation: wheel-rotate 3s linear infinite;
+        }
+
+        .wheel-front { left: 30px; }
+        .wheel-back { right: 30px; }
+
+        .wheel-detail {
+            width: 20px;
+            height: 20px;
+            background: #333;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .wheel-spoke {
+            width: 3px;
+            height: 15px;
+            background: #666;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: center;
+        }
+
+        .spoke-1 { transform: translate(-50%, -50%) rotate(0deg); }
+        .spoke-2 { transform: translate(-50%, -50%) rotate(45deg); }
+        .spoke-3 { transform: translate(-50%, -50%) rotate(90deg); }
+        .spoke-4 { transform: translate(-50%, -50%) rotate(135deg); }
+
+        @keyframes wheel-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .car-light {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 25px;
+            animation: light-pulse 2s infinite;
+        }
+
+        .light-front { 
+            left: 15px; 
+            background: #ffff00;
+            box-shadow: 0 0 20px #ffff00;
+        }
+        .light-back { 
+            right: 15px; 
+            background: #ff4444;
+            box-shadow: 0 0 20px #ff4444;
+        }
+
+        @keyframes light-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .road {
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, #666, transparent);
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            animation: road-move 3s linear infinite;
+        }
+
+        @keyframes road-move {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .button-container {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin-top: 60px;
+            flex-wrap: wrap;
+        }
+
+        .nav-button {
+            padding: 20px 40px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 15px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            min-width: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .nav-button:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 35px rgba(255, 45, 149, 0.4);
+        }
+
+        .btn-control {
+            background: linear-gradient(145deg, var(--accent-pink), #d40078);
+            color: white;
+        }
+
+        .btn-monitor {
+            background: linear-gradient(145deg, var(--accent-cyan), #00b3b3);
+            color: white;
+        }
+
+        .status {
+            margin-top: 30px;
+            color: #b0b0b0;
+            font-size: 1rem;
+        }
+
+        .status-online {
+            color: #00ff88;
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .car-container {
+                transform: scale(0.8);
+            }
+            
+            .button-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .nav-button {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <h1 class="title">
+            <i class="fas fa-robot"></i> iot-car-control
+
+        </h1>
+        <p class="subtitle">Johanna Morales Mateos</p>
+        
+        <div class="car-container">
+            <div class="car-body">
+                <div class="car-top"></div>
+                <div class="wheel wheel-front">
+                    <div class="wheel-detail"></div>
+                    <div class="wheel-spoke spoke-1"></div>
+                    <div class="wheel-spoke spoke-2"></div>
+                    <div class="wheel-spoke spoke-3"></div>
+                    <div class="wheel-spoke spoke-4"></div>
+                </div>
+                <div class="wheel wheel-back">
+                    <div class="wheel-detail"></div>
+                    <div class="wheel-spoke spoke-1"></div>
+                    <div class="wheel-spoke spoke-2"></div>
+                    <div class="wheel-spoke spoke-3"></div>
+                    <div class="wheel-spoke spoke-4"></div>
+                </div>
+                <div class="car-light light-front"></div>
+                <div class="car-light light-back"></div>
+            </div>
+            <div class="road"></div>
+        </div>
+
+        <div class="button-container">
+            <a href="control.html" class="nav-button btn-control">
+                <i class="fas fa-gamepad"></i>
+                CONTROL
+            </a>
+            <a href="monitoreo.html" class="nav-button btn-monitor">
+                <i class="fas fa-chart-line"></i>
+                MONITOREO
+            </a>
+        </div>
+
+        <div class="status">
+            <i class="fas fa-circle status-online"></i> 
+            Sistema Conectado y Listo
+        </div>
+    </div>
+
+    <script>
+        // Efecto de luces aleatorias para hacerlo más vivo
+        function randomizeLights() {
+            const lights = document.querySelectorAll('.car-light');
+            lights.forEach(light => {
+                const randomDelay = Math.random() * 2;
+                light.style.animationDelay = `${randomDelay}s`;
+            });
+        }
+
+        // Inicializar cuando la página carga
+        document.addEventListener('DOMContentLoaded', function() {
+            randomizeLights();
+            console.log('🚗 IoT Carrito - Página de inicio cargada');
+        });
+    </script>
+</body>
+</html>
