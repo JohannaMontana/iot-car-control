@@ -6,7 +6,7 @@ class DemoManager {
             descripcion: '',
             movimientos: []
         };
-        this.backendUrl = 'https://corsproxy.io/?' + encodeURIComponent('http://54.147.92.50:5500')
+       this.backendUrl = 'http://54.147.92.50:5500';
         this.progresoElement = null;
         
         document.addEventListener('DOMContentLoaded', () => {
