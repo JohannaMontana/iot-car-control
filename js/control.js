@@ -8,6 +8,9 @@ class ControlManager {
             movimientos: []
         };
         
+        // Nuevo: Controlador de movimientos inteligentes
+        this.carController = new CarController(this.backendUrl);
+        
         this.inicializarSocket();
     }
 
@@ -44,31 +47,47 @@ class ControlManager {
         socketManager.connect();
     }
 
+    // ==================== MOVIMIENTOS INTELIGENTES ====================
+
     async moverCarrito(statusClave) {
-        const duracion = document.getElementById('duracionMovimiento').value;
         const nombreMovimiento = this.obtenerNombreMovimiento(statusClave);
         
         try {
-            const response = await fetch(`${this.backendUrl}/api/movimiento`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    status_clave: statusClave,
-                    duracion_segundos: parseInt(duracion)
-                })
-            });
+            // Determinar si es movimiento continuo o simple
+            let result;
+            if (statusClave === 1 || statusClave === 2) {
+                // Movimientos continuos (adelante/atrás)
+                result = await this.carController.moverContinuo(statusClave);
+            } else {
+                // Movimientos simples (una vez)
+                const duracion = document.getElementById('duracionMovimiento').value || 3;
+                result = await this.carController.moverSimple(statusClave, parseInt(duracion));
+            }
             
-            const result = await response.json();
-            if (result.success) {
+            if (result && result.success) {
                 this.mostrarNotificacion(`${nombreMovimiento} ejecutado`, 'success');
             } else {
-                this.mostrarNotificacion('Error: ' + result.error, 'danger');
+                this.mostrarNotificacion('Error en movimiento', 'danger');
             }
         } catch (error) {
             console.error('Error:', error);
             this.mostrarNotificacion('Error de conexión con el servidor', 'danger');
         }
     }
+
+    async detenerCarrito() {
+        try {
+            const result = await this.carController.detener();
+            if (result && result.success) {
+                this.mostrarNotificacion('Carrito detenido', 'warning');
+            }
+        } catch (error) {
+            console.error('Error deteniendo:', error);
+            this.mostrarNotificacion('Error deteniendo carrito', 'danger');
+        }
+    }
+
+    // ==================== FUNCIONES EXISTENTES (MANTENER) ====================
 
     obtenerNombreMovimiento(statusClave) {
         const movimientos = {
@@ -79,10 +98,6 @@ class ControlManager {
             10: 'Giro 360° Derecha', 11: 'Giro 360° Izquierda'
         };
         return movimientos[statusClave] || 'Movimiento ' + statusClave;
-    }
-
-    async detenerCarrito() {
-        await this.moverCarrito(3);
     }
 
     async simularObstaculo() {
@@ -264,6 +279,75 @@ class ControlManager {
     }
 }
 
+// ==================== CAR CONTROLLER ====================
+
+class CarController {
+    constructor(backendUrl) {
+        this.API_URL = backendUrl;
+    }
+
+    // Movimientos continuos (hasta obstáculo)
+    async moverContinuo(statusClave) {
+        try {
+            const response = await fetch(`${this.API_URL}/api/movimiento-continuo`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    status_clave: statusClave, 
+                    dispositivo_id: 1 
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error movimiento continuo:', error);
+            throw error;
+        }
+    }
+
+    // Movimientos simples (una vez)
+    async moverSimple(statusClave, duracion = 2) {
+        try {
+            const response = await fetch(`${this.API_URL}/api/movimiento-simple`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    status_clave: statusClave, 
+                    duracion_segundos: duracion,
+                    dispositivo_id: 1 
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Error movimiento simple:', error);
+            throw error;
+        }
+    }
+
+    // Detener movimiento
+    async detener() {
+        return await this.moverSimple(3, 1);
+    }
+
+    // Movimientos especiales
+    async giro360Derecha() {
+        return await this.moverSimple(10, 3);
+    }
+
+    async giro360Izquierda() {
+        return await this.moverSimple(11, 3);
+    }
+
+    // Verificar conexión
+    async verificarConexion() {
+        try {
+            const response = await fetch(`${this.API_URL}/health`);
+            return response.ok;
+        } catch (error) {
+            return false;
+        }
+    }
+}
+
 // Inicialización cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
     window.controlManager = new ControlManager();
@@ -273,5 +357,5 @@ document.addEventListener('DOMContentLoaded', function() {
         controlManager.actualizarEstado();
     }, 3000);
     
-    console.log('🚀 IoT Car Control inicializado');
+    console.log('🚀 IoT Car Control inicializado con movimientos inteligentes');
 });
