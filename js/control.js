@@ -2,92 +2,58 @@ class ControlManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500';
         this.estadoApp = {
-            conectado: false,
+            conectado: true, // Siempre conectado con HTTP
             ultimoMovimiento: null,
             alertas: [],
             movimientos: []
         };
         
-        // Nuevo: Controlador de movimientos inteligentes
-        this.carController = new CarController(this.backendUrl);
+        this.inicializarApp(); // Cambiar nombre
+    }
+
+    inicializarApp() {
+        // 🔥 QUITAR TODO EL CÓDIGO DE SOCKET
+        this.actualizarEstadoConexion(true);
+        this.actualizarEstado();
         
-        this.inicializarSocket();
+        // Cargar demos si existe demoManager
+        if (window.demoManager && typeof window.demoManager.cargarDemos === 'function') {
+            window.demoManager.cargarDemos();
+        }
+        
+        console.log('✅ ControlManager inicializado (HTTP Only)');
     }
 
-    inicializarSocket() {
-        socketManager.on('connected', () => {
-            this.actualizarEstadoConexion(true);
-            this.actualizarEstado();
-            demoManager.cargarDemos();
-        });
-
-        socketManager.on('disconnected', () => {
-            this.actualizarEstadoConexion(false);
-        });
-
-        socketManager.on('movimiento', (data) => {
-            console.log('📤 Nuevo movimiento:', data);
-            this.mostrarNotificacion(`Movimiento ejecutado: ${this.obtenerNombreMovimiento(data.status_clave)}`, 'success');
-            this.actualizarEstado();
-        });
-
-        socketManager.on('alerta', (data) => {
-            console.log('🚨 Alerta de obstáculo:', data);
-            this.mostrarNotificacion('¡Obstáculo detectado y evadido automáticamente!', 'warning');
-            this.estadoApp.alertas.unshift(data);
-            this.actualizarAlertas();
-        });
-
-        socketManager.on('demoEjecutada', (data) => {
-            console.log('🎬 Demo ejecutada:', data);
-            this.mostrarNotificacion('Secuencia DEMO ejecutada', 'info');
-        });
-
-        // Conectar WebSocket
-        socketManager.connect();
-    }
-
-    // ==================== MOVIMIENTOS INTELIGENTES ====================
+    // 🔥 QUITAR: inicializarSocket() - TODO EL MÉTODO
 
     async moverCarrito(statusClave) {
+        const duracion = document.getElementById('duracionMovimiento').value;
         const nombreMovimiento = this.obtenerNombreMovimiento(statusClave);
         
         try {
-            // Determinar si es movimiento continuo o simple
-            let result;
-            if (statusClave === 1 || statusClave === 2) {
-                // Movimientos continuos (adelante/atrás)
-                result = await this.carController.moverContinuo(statusClave);
-            } else {
-                // Movimientos simples (una vez)
-                const duracion = document.getElementById('duracionMovimiento').value || 3;
-                result = await this.carController.moverSimple(statusClave, parseInt(duracion));
-            }
+            const response = await fetch(`${this.backendUrl}/api/movimiento`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status_clave: statusClave,
+                    duracion_segundos: parseInt(duracion)
+                })
+            });
             
-            if (result && result.success) {
+            const result = await response.json();
+            if (result.success) {
                 this.mostrarNotificacion(`${nombreMovimiento} ejecutado`, 'success');
+                // Actualizar estado después del movimiento
+                setTimeout(() => this.actualizarEstado(), 1000);
             } else {
-                this.mostrarNotificacion('Error en movimiento', 'danger');
+                this.mostrarNotificacion('Error: ' + result.error, 'danger');
             }
         } catch (error) {
             console.error('Error:', error);
             this.mostrarNotificacion('Error de conexión con el servidor', 'danger');
+            this.actualizarEstadoConexion(false);
         }
     }
-
-    async detenerCarrito() {
-        try {
-            const result = await this.carController.detener();
-            if (result && result.success) {
-                this.mostrarNotificacion('Carrito detenido', 'warning');
-            }
-        } catch (error) {
-            console.error('Error deteniendo:', error);
-            this.mostrarNotificacion('Error deteniendo carrito', 'danger');
-        }
-    }
-
-    // ==================== FUNCIONES EXISTENTES (MANTENER) ====================
 
     obtenerNombreMovimiento(statusClave) {
         const movimientos = {
@@ -98,6 +64,10 @@ class ControlManager {
             10: 'Giro 360° Derecha', 11: 'Giro 360° Izquierda'
         };
         return movimientos[statusClave] || 'Movimiento ' + statusClave;
+    }
+
+    async detenerCarrito() {
+        await this.moverCarrito(3);
     }
 
     async simularObstaculo() {
@@ -113,6 +83,7 @@ class ControlManager {
             const result = await response.json();
             if (result.success) {
                 this.mostrarNotificacion('Obstáculo simulado y evadido', 'warning');
+                setTimeout(() => this.actualizarEstado(), 1000);
             }
         } catch (error) {
             console.error('Error:', error);
@@ -155,27 +126,37 @@ class ControlManager {
                 this.actualizarHistorial();
             }
             
+            // Actualizar estado de conexión
+            this.actualizarEstadoConexion(true);
+            
         } catch (error) {
             console.error('Error actualizando estado:', error);
+            this.actualizarEstadoConexion(false);
         }
     }
 
     actualizarEstadoConexion(conectado) {
         this.estadoApp.conectado = conectado;
         const estadoElement = document.querySelector('.estado-conexion');
-        const indicator = estadoElement.querySelector('.status-indicator');
+        const indicator = estadoElement?.querySelector('.status-indicator');
         const conexionBadge = document.getElementById('estadoConexion');
+        
+        if (!estadoElement) return;
         
         if (conectado) {
             indicator.className = 'status-indicator status-online pulse';
             estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado al servidor';
-            conexionBadge.innerHTML = '<i class="fas fa-wifi me-1"></i>Conectado';
-            conexionBadge.style.background = '#00ff88';
+            if (conexionBadge) {
+                conexionBadge.innerHTML = '<i class="fas fa-wifi me-1"></i>Conectado';
+                conexionBadge.style.background = '#00ff88';
+            }
         } else {
             indicator.className = 'status-indicator status-offline';
             estadoElement.innerHTML = '<span class="status-indicator status-offline"></span>Desconectado del servidor';
-            conexionBadge.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Desconectado';
-            conexionBadge.style.background = '#ff4444';
+            if (conexionBadge) {
+                conexionBadge.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Desconectado';
+                conexionBadge.style.background = '#ff4444';
+            }
         }
     }
 
@@ -183,7 +164,7 @@ class ControlManager {
         const mov = this.estadoApp.ultimoMovimiento;
         const container = document.getElementById('ultimoMovimiento');
         
-        if (mov) {
+        if (mov && container) {
             container.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
@@ -200,6 +181,7 @@ class ControlManager {
 
     actualizarHistorial() {
         const container = document.getElementById('historialMovimientos');
+        if (!container) return;
         
         if (this.estadoApp.movimientos.length === 0) {
             container.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-robot fa-2x mb-2"></i><br>No hay movimientos recientes</div>';
@@ -230,6 +212,8 @@ class ControlManager {
 
     actualizarAlertas() {
         const container = document.getElementById('alertasActivas');
+        if (!container) return;
+        
         if (this.estadoApp.alertas.length > 0) {
             const ultimaAlerta = this.estadoApp.alertas[0];
             container.innerHTML = `
@@ -279,75 +263,6 @@ class ControlManager {
     }
 }
 
-// ==================== CAR CONTROLLER ====================
-
-class CarController {
-    constructor(backendUrl) {
-        this.API_URL = backendUrl;
-    }
-
-    // Movimientos continuos (hasta obstáculo)
-    async moverContinuo(statusClave) {
-        try {
-            const response = await fetch(`${this.API_URL}/api/movimiento-continuo`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    status_clave: statusClave, 
-                    dispositivo_id: 1 
-                })
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Error movimiento continuo:', error);
-            throw error;
-        }
-    }
-
-    // Movimientos simples (una vez)
-    async moverSimple(statusClave, duracion = 2) {
-        try {
-            const response = await fetch(`${this.API_URL}/api/movimiento-simple`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    status_clave: statusClave, 
-                    duracion_segundos: duracion,
-                    dispositivo_id: 1 
-                })
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Error movimiento simple:', error);
-            throw error;
-        }
-    }
-
-    // Detener movimiento
-    async detener() {
-        return await this.moverSimple(3, 1);
-    }
-
-    // Movimientos especiales
-    async giro360Derecha() {
-        return await this.moverSimple(10, 3);
-    }
-
-    async giro360Izquierda() {
-        return await this.moverSimple(11, 3);
-    }
-
-    // Verificar conexión
-    async verificarConexion() {
-        try {
-            const response = await fetch(`${this.API_URL}/health`);
-            return response.ok;
-        } catch (error) {
-            return false;
-        }
-    }
-}
-
 // Inicialización cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
     window.controlManager = new ControlManager();
@@ -357,5 +272,5 @@ document.addEventListener('DOMContentLoaded', function() {
         controlManager.actualizarEstado();
     }, 3000);
     
-    console.log('🚀 IoT Car Control inicializado con movimientos inteligentes');
+    console.log('🚀 IoT Car Control inicializado (HTTP Only)');
 });

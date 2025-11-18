@@ -1,41 +1,26 @@
 class MonitoreoManager {
     constructor() {
-       this.backendUrl = 'http://54.147.92.50:5500';
+        this.backendUrl = 'http://54.147.92.50:5500';
         this.estadoApp = {
-            conectado: false,
+            conectado: true, // Siempre conectado con HTTP
             metricas: {},
             alertas: [],
             actividadChart: null,
             vistaGrafico: 'hora'
         };
 
-        this.inicializarSocket();
+        this.inicializarApp(); // Cambiar nombre
     }
 
-    inicializarSocket() {
-        socketManager.on('connected', () => {
-            this.actualizarEstadoConexion(true);
-            this.actualizarDatos();
-        });
-
-        socketManager.on('disconnected', () => {
-            this.actualizarEstadoConexion(false);
-        });
-
-        socketManager.on('movimiento', (data) => {
-            console.log('📈 Nuevo movimiento registrado:', data);
-            this.actualizarMetricasRapidas();
-        });
-
-        socketManager.on('alerta', (data) => {
-            console.log('🚨 Nueva alerta:', data);
-            this.agregarAlerta(data);
-            this.actualizarMetricasRapidas();
-        });
-
-        // Conectar WebSocket
-        socketManager.connect();
+    inicializarApp() {
+        // 🔥 QUITAR TODO EL CÓDIGO DE SOCKET
+        this.actualizarEstadoConexion(true);
+        this.actualizarDatos();
+        
+        console.log('✅ MonitoreoManager inicializado (HTTP Only)');
     }
+
+    // 🔥 QUITAR: inicializarSocket() - TODO EL MÉTODO
 
     // ==================== FUNCIONES PRINCIPALES ====================
 
@@ -67,20 +52,28 @@ class MonitoreoManager {
 
     actualizarInterfaz(estadoData, metricasData) {
         // Actualizar métricas principales
-        document.getElementById('metricEstado').textContent = 'Activo';
-        document.getElementById('metricMovimientos').textContent = estadoData.estadisticas?.total_movimientos || '0';
-        document.getElementById('metricAlertas').textContent = this.estadoApp.alertas.length;
-        document.getElementById('metricTiempo').textContent = `${estadoData.estadisticas?.dias_activo || 0}h`;
+        const metricEstado = document.getElementById('metricEstado');
+        const metricMovimientos = document.getElementById('metricMovimientos');
+        const metricAlertas = document.getElementById('metricAlertas');
+        const metricTiempo = document.getElementById('metricTiempo');
+        
+        if (metricEstado) metricEstado.textContent = 'Activo';
+        if (metricMovimientos) metricMovimientos.textContent = estadoData.estadisticas?.total_movimientos || '0';
+        if (metricAlertas) metricAlertas.textContent = this.estadoApp.alertas.length;
+        if (metricTiempo) metricTiempo.textContent = `${estadoData.estadisticas?.dias_activo || 0}h`;
         
         // Actualizar estadísticas de movimientos
         this.actualizarEstadisticasMovimientos(metricasData);
         
         // Actualizar información del sistema
-        document.getElementById('infoActualizacion').textContent = new Date().toLocaleTimeString();
-        document.getElementById('infoServidor').textContent = 'Conectado';
+        const infoActualizacion = document.getElementById('infoActualizacion');
+        const infoServidor = document.getElementById('infoServidor');
+        if (infoActualizacion) infoActualizacion.textContent = new Date().toLocaleTimeString();
+        if (infoServidor) infoServidor.textContent = 'Conectado';
         
         // Actualizar contador de alertas
-        document.getElementById('contadorAlertas').textContent = this.estadoApp.alertas.length;
+        const contadorAlertas = document.getElementById('contadorAlertas');
+        if (contadorAlertas) contadorAlertas.textContent = this.estadoApp.alertas.length;
     }
 
     actualizarEstadisticasMovimientos(metricasData) {
@@ -95,10 +88,15 @@ class MonitoreoManager {
             });
         }
         
-        document.getElementById('statAdelante').textContent = adelante;
-        document.getElementById('statAtras').textContent = atras;
-        document.getElementById('statGiros').textContent = giros;
-        document.getElementById('statVueltas').textContent = vueltas;
+        const statAdelante = document.getElementById('statAdelante');
+        const statAtras = document.getElementById('statAtras');
+        const statGiros = document.getElementById('statGiros');
+        const statVueltas = document.getElementById('statVueltas');
+        
+        if (statAdelante) statAdelante.textContent = adelante;
+        if (statAtras) statAtras.textContent = atras;
+        if (statGiros) statGiros.textContent = giros;
+        if (statVueltas) statVueltas.textContent = vueltas;
     }
 
     agregarAlerta(alertaData) {
@@ -111,6 +109,7 @@ class MonitoreoManager {
 
     actualizarListaAlertas() {
         const container = document.getElementById('alertasContainer');
+        if (!container) return;
         
         if (this.estadoApp.alertas.length === 0) {
             container.innerHTML = `
@@ -153,16 +152,22 @@ class MonitoreoManager {
 
     actualizarMetricasRapidas() {
         // Actualización rápida sin recargar todo
-        document.getElementById('metricAlertas').textContent = this.estadoApp.alertas.length;
-        document.getElementById('contadorAlertas').textContent = this.estadoApp.alertas.length;
-        document.getElementById('infoActualizacion').textContent = new Date().toLocaleTimeString();
+        const metricAlertas = document.getElementById('metricAlertas');
+        const contadorAlertas = document.getElementById('contadorAlertas');
+        const infoActualizacion = document.getElementById('infoActualizacion');
+        
+        if (metricAlertas) metricAlertas.textContent = this.estadoApp.alertas.length;
+        if (contadorAlertas) contadorAlertas.textContent = this.estadoApp.alertas.length;
+        if (infoActualizacion) infoActualizacion.textContent = new Date().toLocaleTimeString();
     }
 
     // ==================== GRÁFICOS ====================
 
     inicializarGrafico() {
-        const ctx = document.getElementById('actividadChart').getContext('2d');
-        this.estadoApp.actividadChart = new Chart(ctx, {
+        const ctx = document.getElementById('actividadChart');
+        if (!ctx) return;
+        
+        this.estadoApp.actividadChart = new Chart(ctx.getContext('2d'), {
             type: 'line',
             data: {
                 labels: [],
@@ -235,19 +240,25 @@ class MonitoreoManager {
     actualizarEstadoConexion(conectado) {
         this.estadoApp.conectado = conectado;
         const estadoElement = document.querySelector('.estado-conexion');
-        const indicator = estadoElement.querySelector('.status-indicator');
+        const indicator = estadoElement?.querySelector('.status-indicator');
         const infoEstado = document.getElementById('infoEstado');
+        
+        if (!estadoElement) return;
         
         if (conectado) {
             indicator.className = 'status-indicator status-online pulse';
             estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado al servidor';
-            infoEstado.innerHTML = '<i class="fas fa-wifi me-1"></i>Online';
-            infoEstado.style.background = '#00ff88';
+            if (infoEstado) {
+                infoEstado.innerHTML = '<i class="fas fa-wifi me-1"></i>Online';
+                infoEstado.style.background = '#00ff88';
+            }
         } else {
             indicator.className = 'status-indicator status-offline';
             estadoElement.innerHTML = '<span class="status-indicator status-offline"></span>Desconectado del servidor';
-            infoEstado.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Offline';
-            infoEstado.style.background = '#ff4444';
+            if (infoEstado) {
+                infoEstado.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Offline';
+                infoEstado.style.background = '#ff4444';
+            }
         }
     }
 
@@ -257,38 +268,41 @@ class MonitoreoManager {
             const data = await response.json();
             
             const contenido = document.getElementById('metricasContenido');
-            contenido.innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Obstáculos por Tipo</h6>
-                        <div class="list-group">
-                            ${data.obstaculos_por_tipo ? data.obstaculos_por_tipo.map(obs => `
-                                <div class="list-group-item d-flex justify-content-between align-items-center" 
-                                     style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
-                                    <span>${obs.status_texto}</span>
-                                    <span class="badge" style="background: var(--accent-pink);">${obs.cantidad}</span>
-                                </div>
-                            `).join('') : '<p class="text-muted">No hay datos</p>'}
+            if (contenido) {
+                contenido.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Obstáculos por Tipo</h6>
+                            <div class="list-group">
+                                ${data.obstaculos_por_tipo ? data.obstaculos_por_tipo.map(obs => `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center" 
+                                         style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                                        <span>${obs.status_texto}</span>
+                                        <span class="badge" style="background: var(--accent-pink);">${obs.cantidad}</span>
+                                    </div>
+                                `).join('') : '<p class="text-muted">No hay datos</p>'}
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Tasa de Resolución</h6>
+                            <div class="list-group">
+                                ${data.obstaculos_por_tipo ? data.obstaculos_por_tipo.map(obs => `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center" 
+                                         style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
+                                        <span>${obs.status_texto}</span>
+                                        <span class="badge" style="background: var(--accent-cyan);">
+                                            ${Math.round(obs.tasa_resolucion * 100)}%
+                                        </span>
+                                    </div>
+                                `).join('') : '<p class="text-muted">No hay datos</p>'}
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <h6>Tasa de Resolución</h6>
-                        <div class="list-group">
-                            ${data.obstaculos_por_tipo ? data.obstaculos_por_tipo.map(obs => `
-                                <div class="list-group-item d-flex justify-content-between align-items-center" 
-                                     style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
-                                    <span>${obs.status_texto}</span>
-                                    <span class="badge" style="background: var(--accent-cyan);">
-                                        ${Math.round(obs.tasa_resolucion * 100)}%
-                                    </span>
-                                </div>
-                            `).join('') : '<p class="text-muted">No hay datos</p>'}
-                        </div>
-                    </div>
-                </div>
-            `;
+                `;
+            }
             
-            new bootstrap.Modal(document.getElementById('metricasModal')).show();
+            const metricasModal = new bootstrap.Modal(document.getElementById('metricasModal'));
+            metricasModal.show();
         } catch (error) {
             console.error('Error cargando métricas avanzadas:', error);
             this.mostrarNotificacion('Error cargando métricas avanzadas', 'danger');
@@ -341,5 +355,5 @@ document.addEventListener('DOMContentLoaded', function() {
         monitoreoManager.actualizarDatos();
     }, 5000);
     
-    console.log('📊 Sistema de Monitoreo inicializado');
+    console.log('📊 Sistema de Monitoreo inicializado (HTTP Only)');
 });

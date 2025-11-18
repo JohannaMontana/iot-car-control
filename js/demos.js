@@ -6,51 +6,20 @@ class DemoManager {
             descripcion: '',
             movimientos: []
         };
-       this.backendUrl = 'http://54.147.92.50:5500';
+        this.backendUrl = 'http://54.147.92.50:5500';
         this.progresoElement = null;
         
         document.addEventListener('DOMContentLoaded', () => {
             this.cargarDemos();
-            this.inicializarSocketDemo();
+            // 🔥 QUITAR: this.inicializarSocketDemo();
         });
     }
 
-    inicializarSocketDemo() {
-        socketManager.on('demo_progreso', (data) => {
-            this.mostrarProgresoEjecucion(data);
-        });
+    // 🔥 QUITAR: inicializarSocketDemo() - TODO EL MÉTODO
 
-        socketManager.on('demo_completada', (data) => {
-            this.mostrarNotificacion('Demo completada: ' + data.total_movimientos + ' movimientos', 'success');
-            this.ocultarProgreso();
-        });
+    // 🔥 QUITAR: mostrarProgresoEjecucion() - TODO EL MÉTODO
 
-        socketManager.on('demo_error', (data) => {
-            this.mostrarNotificacion('Error en demo: ' + data.error, 'danger');
-            this.ocultarProgreso();
-        });
-    }
-
-    mostrarProgresoEjecucion(data) {
-        this.ocultarProgreso();
-        
-        this.progresoElement = document.createElement('div');
-        this.progresoElement.className = 'alert alert-info position-fixed';
-        this.progresoElement.style.cssText = 'bottom: 20px; right: 20px; z-index: 1050; min-width: 350px; background: rgba(0, 255, 255, 0.15); backdrop-filter: blur(10px); border: 1px solid var(--accent-cyan); color: white;';
-        
-        const porcentaje = Math.round((data.movimiento_actual / data.total_movimientos) * 100);
-        
-        this.progresoElement.innerHTML = '<div class="d-flex align-items-center"><i class="fas fa-play-circle me-2" style="color: var(--accent-cyan);"></i><div class="flex-grow-1"><div class="d-flex justify-content-between"><small>Ejecutando demo...</small><small>' + data.movimiento_actual + '/' + data.total_movimientos + '</small></div><div class="fw-bold">' + data.nombre_movimiento + ' (' + data.duracion + 's)</div><div class="progress mt-2" style="height: 6px; background: rgba(255,255,255,0.2);"><div class="progress-bar" style="background: var(--accent-cyan); width: ' + porcentaje + '%"></div></div><small class="text-muted">Progreso: ' + porcentaje + '%</small></div></div>';
-        
-        document.body.appendChild(this.progresoElement);
-    }
-
-    ocultarProgreso() {
-        if (this.progresoElement && this.progresoElement.parentNode) {
-            this.progresoElement.parentNode.removeChild(this.progresoElement);
-            this.progresoElement = null;
-        }
-    }
+    // 🔥 QUITAR: ocultarProgreso() - TODO EL MÉTODO
 
     async cargarDemos() {
         console.log('Cargando demos...');
@@ -88,7 +57,31 @@ class DemoManager {
         demos.forEach(demo => {
             const demoCard = document.createElement('div');
             demoCard.className = 'demo-card mb-3';
-            demoCard.innerHTML = '<div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1"><h6 class="mb-1">' + this.escapeHtml(demo.nombre_secuencia) + '</h6>' + (demo.descripcion ? '<small class="text-muted">' + this.escapeHtml(demo.descripcion) + '</small>' : '') + '<div class="mt-2"><small class="text-muted"><i class="fas fa-list me-1"></i>' + JSON.parse(demo.movimientos).length + ' movimientos</small></div></div><div class="btn-group ms-3"><button class="btn btn-sm btn-ejecutar" onclick="demoManager.ejecutarDemo(' + demo.secuencia_id + ', \'' + this.escapeHtml(demo.nombre_secuencia) + '\')" title="Ejecutar"><i class="fas fa-play"></i></button><button class="btn btn-sm btn-editar" onclick="demoManager.editarDemo(' + demo.secuencia_id + ')" title="Editar"><i class="fas fa-edit"></i></button><button class="btn btn-sm btn-eliminar" onclick="demoManager.eliminarDemo(' + demo.secuencia_id + ')" title="Eliminar"><i class="fas fa-trash"></i></button></div></div>';
+            demoCard.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${this.escapeHtml(demo.nombre_secuencia)}</h6>
+                        ${demo.descripcion ? `<small class="text-muted">${this.escapeHtml(demo.descripcion)}</small>` : ''}
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-list me-1"></i>
+                                ${JSON.parse(demo.movimientos).length} movimientos
+                            </small>
+                        </div>
+                    </div>
+                    <div class="btn-group ms-3">
+                        <button class="btn btn-sm btn-ejecutar" onclick="demoManager.ejecutarDemo(${demo.secuencia_id}, '${this.escapeHtml(demo.nombre_secuencia)}')" title="Ejecutar">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="btn btn-sm btn-editar" onclick="demoManager.editarDemo(${demo.secuencia_id})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-eliminar" onclick="demoManager.eliminarDemo(${demo.secuencia_id})" title="Eliminar">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
             container.appendChild(demoCard);
         });
         
@@ -119,7 +112,15 @@ class DemoManager {
         const container = document.getElementById('listaDemos');
         if (!container) return;
         
-        container.innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-inbox fa-2x mb-3"></i><p>No hay secuencias DEMO creadas</p><button class="btn btn-sm btn-nueva-demo" style="background: var(--accent-cyan); color: white; border: none;"><i class="fas fa-plus me-1"></i>Crear Primera Demo</button></div>';
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-2x mb-3"></i>
+                <p>No hay secuencias DEMO creadas</p>
+                <button class="btn btn-sm btn-nueva-demo" style="background: var(--accent-cyan); color: white; border: none;">
+                    <i class="fas fa-plus me-1"></i>Crear Primera Demo
+                </button>
+            </div>
+        `;
         
         document.querySelector('.btn-nueva-demo').addEventListener('click', () => {
             this.mostrarEditor();
@@ -130,7 +131,15 @@ class DemoManager {
         const container = document.getElementById('listaDemos');
         if (!container) return;
         
-        container.innerHTML = '<div class="text-center text-danger py-3"><i class="fas fa-exclamation-triangle me-2"></i>Error cargando demos<br><button class="btn btn-sm mt-2" onclick="demoManager.cargarDemos()" style="background: var(--accent-pink); color: white;"><i class="fas fa-refresh me-1"></i>Reintentar</button></div>';
+        container.innerHTML = `
+            <div class="text-center text-danger py-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error cargando demos<br>
+                <button class="btn btn-sm mt-2" onclick="demoManager.cargarDemos()" style="background: var(--accent-pink); color: white;">
+                    <i class="fas fa-refresh me-1"></i>Reintentar
+                </button>
+            </div>
+        `;
     }
 
     mostrarEditor(demo = null) {
@@ -193,7 +202,15 @@ class DemoManager {
             this.demoActual.movimientos.forEach((mov, index) => {
                 const movItem = document.createElement('div');
                 movItem.className = 'd-flex justify-content-between align-items-center border-bottom py-2';
-                movItem.innerHTML = '<div><span class="badge me-2" style="background: var(--accent-purple);">' + (index + 1) + '</span>' + mov.nombre + ' (' + mov.duracion + 's)</div><button class="btn btn-sm btn-eliminar-movimiento" style="background: #ff4444; color: white; border: none;"><i class="fas fa-times"></i></button>';
+                movItem.innerHTML = `
+                    <div>
+                        <span class="badge me-2" style="background: var(--accent-purple);">${index + 1}</span>
+                        ${mov.nombre} (${mov.duracion}s)
+                    </div>
+                    <button class="btn btn-sm btn-eliminar-movimiento" style="background: #ff4444; color: white; border: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
                 
                 movItem.querySelector('.btn-eliminar-movimiento').addEventListener('click', () => {
                     this.eliminarMovimiento(index);
@@ -295,6 +312,9 @@ class DemoManager {
             
             if (result.success) {
                 this.mostrarNotificacion('Demo "' + nombre + '" iniciada - ' + result.total_movimientos + ' movimientos (' + result.duracion_total + 's total)', 'info');
+                
+                // 🔥 NUEVO: Mostrar progreso simple (sin WebSockets)
+                this.mostrarProgresoSimple(nombre, result.total_movimientos);
             } else {
                 this.mostrarNotificacion('Error: ' + (result.error || 'Error desconocido'), 'danger');
             }
@@ -302,6 +322,46 @@ class DemoManager {
         } catch (error) {
             console.error('Error ejecutando demo:', error);
             this.mostrarNotificacion('Error de conexion con el servidor', 'danger');
+        }
+    }
+
+    // 🔥 NUEVO: Progreso simple sin WebSockets
+    mostrarProgresoSimple(nombre, totalMovimientos) {
+        this.ocultarProgreso();
+        
+        this.progresoElement = document.createElement('div');
+        this.progresoElement.className = 'alert alert-info position-fixed';
+        this.progresoElement.style.cssText = 'bottom: 20px; right: 20px; z-index: 1050; min-width: 350px; background: rgba(0, 255, 255, 0.15); backdrop-filter: blur(10px); border: 1px solid var(--accent-cyan); color: white;';
+        
+        this.progresoElement.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas fa-play-circle me-2" style="color: var(--accent-cyan);"></i>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <small>Ejecutando demo...</small>
+                        <small>0/${totalMovimientos}</small>
+                    </div>
+                    <div class="fw-bold">${nombre}</div>
+                    <div class="progress mt-2" style="height: 6px; background: rgba(255,255,255,0.2);">
+                        <div class="progress-bar" style="background: var(--accent-cyan); width: 0%"></div>
+                    </div>
+                    <small class="text-muted">Progreso: 0%</small>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(this.progresoElement);
+        
+        // Ocultar después de 10 segundos (estimado)
+        setTimeout(() => {
+            this.ocultarProgreso();
+        }, 10000);
+    }
+
+    ocultarProgreso() {
+        if (this.progresoElement && this.progresoElement.parentNode) {
+            this.progresoElement.parentNode.removeChild(this.progresoElement);
+            this.progresoElement = null;
         }
     }
 
