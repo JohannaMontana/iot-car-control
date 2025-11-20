@@ -2,153 +2,116 @@ class ControlManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500';
         this.estadoApp = {
-            conectado: true,
-            websocketConectado: false,
+            conectado: false,
             ultimoMovimiento: null,
             alertas: [],
-            movimientos: [],
-            estadoArduino: null
+            movimientos: []
         };
         
-        // WebSocket
-        this.websocket = null;
-        this.reconectarTimeout = null;
+        // Variable para la instancia de Socket.IO
+        this.socket = null;
         
         this.inicializarApp();
     }
 
     inicializarApp() {
-        this.inicializarWebSocket();
-        this.actualizarEstadoConexion(true);
+        // 1. Iniciar conexión Socket.IO (La forma correcta para la Web)
+        this.inicializarSocketIO();
+        
+        // 2. Cargar estado inicial vía HTTP
         this.actualizarEstado();
         
-        // Cargar demos si existe demoManager
+        // 3. Cargar demos si existe el manager
         if (window.demoManager && typeof window.demoManager.cargarDemos === 'function') {
             window.demoManager.cargarDemos();
         }
         
-        console.log('ControlManager inicializado (HTTP + WebSockets)');
+        console.log('✅ ControlManager inicializado (HTTP + Socket.IO)');
     }
 
-    inicializarWebSocket() {
-        try {
-            const protocolo = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocolo}//54.147.92.50:5500/websocket`;
-            
-            this.websocket = new WebSocket(wsUrl);
-            
-            this.websocket.onopen = () => {
-                console.log('WebSocket conectado');
-                this.estadoApp.websocketConectado = true;
-                this.actualizarEstadoConexion(true);
-                
-                // Identificarse como navegador
-                this.identificarComoNavegador();
-                
-                // Configurar reconexión automática
-                this.iniciarReconexionAutomatica();
-            };
-            
-            this.websocket.onmessage = (event) => {
-                this.manejarMensajeWebSocket(JSON.parse(event.data));
-            };
-            
-            this.websocket.onclose = () => {
-                console.log('WebSocket desconectado');
-                this.estadoApp.websocketConectado = false;
-                this.actualizarEstadoConexion(false);
-                this.reconectar();
-            };
-            
-            this.websocket.onerror = (error) => {
-                console.error('Error WebSocket:', error);
-                this.estadoApp.websocketConectado = false;
-                this.actualizarEstadoConexion(false);
-            };
-            
-        } catch (error) {
-            console.error('Error inicializando WebSocket:', error);
-            this.estadoApp.websocketConectado = false;
-        }
-    }
+    inicializarSocketIO() {
+        // Conectar usando la librería cliente de Socket.IO
+        console.log('🔌 Conectando Socket.IO...');
+        this.socket = io(this.backendUrl, {
+            transports: ['websocket', 'polling'], // Intentar WebSocket primero
+            reconnection: true
+        });
 
-    identificarComoNavegador() {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(JSON.stringify({
-                tipo: 'identificacion',
-                cliente: 'navegador',
-                userAgent: navigator.userAgent
-            }));
-        }
-    }
-
-    manejarMensajeWebSocket(mensaje) {
-        console.log('Mensaje WebSocket recibido:', mensaje);
+        // === EVENTOS DE CONEXIÓN ===
         
-        switch(mensaje.tipo) {
-            case 'movimiento_ejecutado':
-                this.mostrarNotificacion(`Movimiento ${mensaje.status_clave} ejecutado`, 'success');
-                this.actualizarEstado(); // Actualizar estado desde servidor
-                break;
-                
-            case 'estado_arduino':
-                this.estadoApp.estadoArduino = mensaje.data;
-                this.actualizarEstadoArduino();
-                break;
-                
-            case 'obstaculo_detectado':
-                this.mostrarNotificacion(`Obstáculo detectado a ${mensaje.data.distancia}cm`, 'warning');
-                this.agregarAlerta(mensaje);
-                break;
-                
-            case 'movimiento_solicitado':
-                console.log('Movimiento solicitado via WebSocket:', mensaje.status_clave);
-                break;
-                
-            case 'movimiento_detenido':
-                this.mostrarNotificacion('Movimiento detenido', 'info');
-                break;
-                
-            case 'demo_progreso':
-                if (window.demoManager && window.demoManager.actualizarProgresoDemo) {
-                    window.demoManager.actualizarProgresoDemo(mensaje);
-                }
-                break;
-                
-            case 'demo_completada':
-                this.mostrarNotificacion(`Demo "${mensaje.nombre_demo}" completada`, 'success');
-                break;
-                
-            case 'identificacion_confirmada':
-                console.log('Identificación confirmada:', mensaje.mensaje);
-                break;
-        }
+        this.socket.on('connect', () => {
+            console.log('✅ Socket.IO Conectado:', this.socket.id);
+            this.actualizarEstadoConexion(true);
+        });
+
+        this.socket.on('disconnect', () => {
+            console.log('❌ Socket.IO Desconectado');
+            this.actualizarEstadoConexion(false);
+        });
+
+        this.socket.on('connect_error', (error) => {
+            console.error('Error de conexión Socket.IO:', error);
+            this.actualizarEstadoConexion(false);
+        });
+
+        // === EVENTOS DEL NEGOCIO (Lo que emite tu app.py) ===
+
+        // 1. Movimiento Agregado
+        this.socket.on('movimiento_agregado', (data) => {
+            console.log('📩 Evento recibido: movimiento_agregado', data);
+            this.mostrarNotificacion(`Movimiento ejecutado: ${this.obtenerNombreMovimiento(data.status_clave)}`, 'success');
+            // Actualizar la UI inmediatamente
+            setTimeout(() => this.actualizarEstado(), 500);
+        });
+
+        // 2. Movimiento Detenido
+        this.socket.on('movimiento_detenido', (data) => {
+            this.mostrarNotificacion('🛑 ' + data.mensaje, 'warning');
+            this.actualizarEstado();
+        });
+
+        // 3. Alerta de Obstáculo
+        this.socket.on('alerta_obstaculo', (data) => {
+            console.warn('🚨 Obstáculo:', data);
+            this.mostrarNotificacion(`⚠️ Obstáculo detectado (Tipo ${data.tipo_obstaculo})`, 'danger');
+            
+            // Agregar a la lista local de alertas
+            const alerta = {
+                mensaje: data.mensaje,
+                timestamp: data.timestamp,
+                tipo: data.tipo_obstaculo
+            };
+            this.estadoApp.alertas.unshift(alerta);
+            this.actualizarAlertas();
+        });
+
+        // 4. Progreso de Demo
+        this.socket.on('demo_progreso', (data) => {
+            // Si tienes el DemoManager, pasale los datos
+            if (window.demoManager && typeof window.demoManager.mostrarProgresoSimple === 'function') {
+                // Adaptamos para usar tu función de progreso visual
+                // Nota: Podrías necesitar crear un método actualizarProgreso en demoManager
+                console.log(`Demo progreso: ${data.movimiento_actual}/${data.total_movimientos}`);
+            }
+        });
+
+        // 5. Demo Completada
+        this.socket.on('demo_completada', (data) => {
+            this.mostrarNotificacion(`✅ Demo "${data.nombre}" finalizada`, 'success');
+            if (window.demoManager && typeof window.demoManager.ocultarProgreso === 'function') {
+                window.demoManager.ocultarProgreso();
+            }
+        });
     }
 
+    // === ENVÍO DE COMANDOS (Usamos HTTP POST para activar la cadena Backend -> Arduino) ===
+    
     async moverCarrito(statusClave) {
-        const duracion = document.getElementById('duracionMovimiento').value;
+        const duracion = document.getElementById('duracionMovimiento')?.value || 5;
         const nombreMovimiento = this.obtenerNombreMovimiento(statusClave);
         
-        // Intentar WebSocket primero
-        if (this.estadoApp.websocketConectado && this.websocket) {
-            try {
-                this.websocket.send(JSON.stringify({
-                    tipo: 'movimiento',
-                    status_clave: statusClave,
-                    duracion: parseInt(duracion),
-                    timestamp: new Date().toISOString()
-                }));
-                
-                this.mostrarNotificacion(`${nombreMovimiento} enviado via WebSocket`, 'success');
-                return;
-                
-            } catch (error) {
-                console.error('Error enviando via WebSocket, usando HTTP fallback:', error);
-                this.estadoApp.websocketConectado = false;
-            }
-        }
-        
-        // Fallback a HTTP
+        // IMPORTANTE: Usamos HTTP POST. 
+        // El backend recibe el POST y él se encarga de enviarlo por WebSocket al Arduino.
         try {
             const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST',
@@ -160,9 +123,11 @@ class ControlManager {
             });
             
             const result = await response.json();
+            
             if (result.success) {
-                this.mostrarNotificacion(`${nombreMovimiento} ejecutado`, 'success');
-                setTimeout(() => this.actualizarEstado(), 1000);
+                // No necesitamos mostrar notificación aquí si esperamos el evento del socket,
+                // pero para feedback inmediato está bien dejarlo.
+                console.log('Comando enviado al servidor');
             } else {
                 this.mostrarNotificacion('Error: ' + result.error, 'danger');
             }
@@ -172,6 +137,23 @@ class ControlManager {
             this.actualizarEstadoConexion(false);
         }
     }
+
+    async detenerCarrito() {
+        try {
+            const response = await fetch(`${this.backendUrl}/api/detener`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            if (!result.success) {
+                this.mostrarNotificacion('Error al detener: ' + result.error, 'danger');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    // === UTILIDADES Y UI ===
 
     obtenerNombreMovimiento(statusClave) {
         const movimientos = {
@@ -184,47 +166,16 @@ class ControlManager {
         return movimientos[statusClave] || 'Movimiento ' + statusClave;
     }
 
-    async detenerCarrito() {
-        // Intentar WebSocket primero
-        if (this.estadoApp.websocketConectado && this.websocket) {
-            try {
-                this.websocket.send(JSON.stringify({
-                    tipo: 'movimiento',
-                    status_clave: 3,
-                    timestamp: new Date().toISOString()
-                }));
-                
-                this.mostrarNotificacion('Comando detener enviado via WebSocket', 'info');
-                return;
-                
-            } catch (error) {
-                console.error('Error enviando detener via WebSocket:', error);
-                this.estadoApp.websocketConectado = false;
-            }
-        }
-        
-        // Fallback a HTTP
-        await this.moverCarrito(3);
-    }
-
     async simularObstaculo() {
         try {
-            const response = await fetch(`${this.backendUrl}/api/obstaculo`, {
+            await fetch(`${this.backendUrl}/api/obstaculo`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    status_clave: 1
-                })
+                body: JSON.stringify({ status_clave: 1 })
             });
-            
-            const result = await response.json();
-            if (result.success) {
-                this.mostrarNotificacion('Obstáculo simulado y evadido', 'warning');
-                setTimeout(() => this.actualizarEstado(), 1000);
-            }
+            // La notificación llegará por el evento del socket 'alerta_obstaculo'
         } catch (error) {
             console.error('Error:', error);
-            this.mostrarNotificacion('Error simulando obstáculo', 'danger');
         }
     }
 
@@ -233,18 +184,14 @@ class ControlManager {
             const response = await fetch(`${this.backendUrl}/api/reanudar`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    dispositivo_id: 1
-                })
+                body: JSON.stringify({ dispositivo_id: 1 })
             });
-            
             const result = await response.json();
             if (result.success) {
                 this.mostrarNotificacion('Ejecución reanudada', 'success');
             }
         } catch (error) {
-            console.error('Error:', error);
-            this.mostrarNotificacion('Error reanudando ejecución', 'danger');
+            this.mostrarNotificacion('Error reanudando', 'danger');
         }
     }
 
@@ -262,49 +209,24 @@ class ControlManager {
                 this.estadoApp.movimientos = data.movimientos_recientes;
                 this.actualizarHistorial();
             }
-            
-            // Actualizar información de WebSocket si está disponible
-            if (data.websocket_clients !== undefined) {
-                this.actualizarInfoWebSocket(data.websocket_clients);
-            }
+
+            // Actualizar estado de conexión del ARDUINO (Viene en el JSON de estado-actual)
+            this.actualizarEstadoArduino(data.estado_ws_arduino === 'Conectado');
             
         } catch (error) {
             console.error('Error actualizando estado:', error);
         }
     }
 
-    actualizarEstadoArduino() {
-        const container = document.getElementById('estadoArduino');
-        if (!container || !this.estadoApp.estadoArduino) return;
-        
-        const estado = this.estadoApp.estadoArduino;
-        container.innerHTML = `
-            <div class="row small">
-                <div class="col-6">
-                    <i class="fas fa-ruler-vertical me-1"></i>
-                    ${estado.distancia}cm
-                </div>
-                <div class="col-6">
-                    <i class="fas fa-broadcast-tower me-1"></i>
-                    ${estado.rssi}dBm
-                </div>
-                <div class="col-12 mt-1">
-                    <i class="fas fa-play-circle me-1"></i>
-                    Estado: ${estado.status_actual}
-                </div>
-            </div>
-        `;
-    }
-
-    actualizarInfoWebSocket(clientesConectados) {
-        const badge = document.getElementById('estadoWebSocket');
+    actualizarEstadoArduino(conectado) {
+        const badge = document.getElementById('estadoArduino'); // Asegúrate de tener este elemento en tu HTML o créalo
         if (badge) {
-            if (this.estadoApp.websocketConectado) {
-                badge.innerHTML = `<i class="fas fa-plug me-1"></i>WebSocket (${clientesConectados})`;
-                badge.style.background = '#00ff88';
+            if (conectado) {
+                badge.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Online';
+                badge.className = 'badge bg-success';
             } else {
-                badge.innerHTML = '<i class="fas fa-unplug me-1"></i>HTTP';
-                badge.style.background = '#ff9500';
+                badge.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Offline';
+                badge.className = 'badge bg-danger';
             }
         }
     }
@@ -318,25 +240,20 @@ class ControlManager {
         if (!estadoElement) return;
         
         if (conectado) {
-            const modo = this.estadoApp.websocketConectado ? 'WebSocket' : 'HTTP';
             indicator.className = 'status-indicator status-online pulse';
-            estadoElement.innerHTML = `<span class="status-indicator status-online pulse"></span>Conectado al servidor (${modo})`;
-            
+            estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado (Socket.IO)';
             if (conexionBadge) {
-                conexionBadge.innerHTML = `<i class="fas fa-wifi me-1"></i>Conectado (${modo})`;
+                conexionBadge.innerHTML = '<i class="fas fa-wifi me-1"></i>Online';
                 conexionBadge.style.background = '#00ff88';
             }
         } else {
             indicator.className = 'status-indicator status-offline';
-            estadoElement.innerHTML = '<span class="status-indicator status-offline"></span>Desconectado del servidor';
+            estadoElement.innerHTML = '<span class="status-indicator status-offline"></span>Desconectado';
             if (conexionBadge) {
-                conexionBadge.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Desconectado';
+                conexionBadge.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Offline';
                 conexionBadge.style.background = '#ff4444';
             }
         }
-        
-        // Actualizar también la info de WebSocket
-        this.actualizarInfoWebSocket(0);
     }
 
     actualizarUltimoMovimiento() {
@@ -389,14 +306,6 @@ class ControlManager {
         });
     }
 
-    agregarAlerta(alertaData) {
-        this.estadoApp.alertas.unshift(alertaData);
-        if (this.estadoApp.alertas.length > 10) {
-            this.estadoApp.alertas = this.estadoApp.alertas.slice(0, 10);
-        }
-        this.actualizarAlertas();
-    }
-
     actualizarAlertas() {
         const container = document.getElementById('alertasActivas');
         if (!container) return;
@@ -406,7 +315,7 @@ class ControlManager {
             container.innerHTML = `
                 <span class="pulse" style="color: #ff9500;">
                     <i class="fas fa-exclamation-triangle me-1"></i>
-                    Obstáculo detectado (${ultimaAlerta.distancia}cm)
+                    ${ultimaAlerta.mensaje || 'Obstáculo detectado'}
                 </span>
             `;
         } else {
@@ -414,29 +323,11 @@ class ControlManager {
         }
     }
 
-    iniciarReconexionAutomatica() {
-        // Limpiar timeout anterior si existe
-        if (this.reconectarTimeout) {
-            clearTimeout(this.reconectarTimeout);
-        }
-    }
-
-    reconectar() {
-        if (this.reconectarTimeout) {
-            clearTimeout(this.reconectarTimeout);
-        }
-        
-        this.reconectarTimeout = setTimeout(() => {
-            console.log('Intentando reconectar WebSocket...');
-            this.inicializarWebSocket();
-        }, 3000);
-    }
-
     mostrarNotificacion(mensaje, tipo) {
         const toast = document.createElement('div');
         const bgColor = tipo === 'success' ? '#00ff88' : 
-                       tipo === 'warning' ? '#ff9500' : 
-                       tipo === 'danger' ? '#ff4444' : '#8a2be2';
+                        tipo === 'warning' ? '#ff9500' : 
+                        tipo === 'danger' ? '#ff4444' : '#8a2be2';
         
         toast.className = `alert alert-dismissible fade show position-fixed`;
         toast.style.cssText = `
@@ -459,25 +350,9 @@ class ControlManager {
         `;
         
         document.body.appendChild(toast);
-        
         setTimeout(() => {
-            if (toast.parentNode) {
-                toast.parentNode.removeChild(toast);
-            }
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
         }, 4000);
-    }
-
-    // Método para probar WebSocket manualmente
-    probarWebSocket() {
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(JSON.stringify({
-                tipo: 'ping',
-                mensaje: 'Test desde navegador'
-            }));
-            this.mostrarNotificacion('Ping enviado via WebSocket', 'info');
-        } else {
-            this.mostrarNotificacion('WebSocket no conectado', 'danger');
-        }
     }
 }
 
@@ -485,22 +360,10 @@ class ControlManager {
 document.addEventListener('DOMContentLoaded', function() {
     window.controlManager = new ControlManager();
     
-    // Actualizar estado cada 3 segundos (solo para datos HTTP)
+    // Actualizar estado cada 3 segundos como respaldo
     setInterval(() => {
         controlManager.actualizarEstado();
     }, 3000);
     
-    console.log('IoT Car Control inicializado (HTTP + WebSockets)');
-    
-    // Agregar botón de prueba WebSocket si no existe
-    if (!document.getElementById('probarWebSocket')) {
-        const botonPrueba = document.createElement('button');
-        botonPrueba.id = 'probarWebSocket';
-        botonPrueba.className = 'btn btn-sm btn-outline-info position-fixed';
-        botonPrueba.style.cssText = 'bottom: 10px; right: 10px; z-index: 1000;';
-        botonPrueba.innerHTML = '<i class="fas fa-bolt"></i>';
-        botonPrueba.title = 'Probar WebSocket';
-        botonPrueba.onclick = () => window.controlManager.probarWebSocket();
-        document.body.appendChild(botonPrueba);
-    }
+    console.log('🚀 IoT Car Control inicializado (Socket.IO + HTTP)');
 });
