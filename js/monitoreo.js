@@ -1,114 +1,120 @@
 class MonitoreoManager {
     constructor() {
-        this.backendUrl = 'http://54.147.92.50:5500'; // Tu IP
+        // Asegúrate que sea la IP de tu EC2
+        this.backendUrl = 'http://54.147.92.50:5500';
+        this.socket = null;
+        
         this.estadoApp = {
             metricas: {},
             alertas: [],
             actividadChart: null,
-            vistaGrafico: 'hora',
+            vistaGrafico: 'hora', // 'hora' o 'tipo'
             ultimaActualizacion: new Date()
         };
 
-        this.inicializarApp();
+        // Iniciar cuando el DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            this.inicializarApp();
+        });
     }
 
     inicializarApp() {
+        // 1. Iniciar Gráfico (Vacío al principio)
         this.inicializarGrafico();
+        
+        // 2. Conectar Socket.IO para tiempo real
+        this.inicializarSocketIO();
+        
+        // 3. Cargar datos iniciales de la BD
         this.actualizarDatos();
         
-        // Actualizar periódicamente cada 3 segundos
+        // 4. Polling de respaldo cada 3 segundos (para mantener sync)
         setInterval(() => this.actualizarDatos(), 3000);
 
-        // Intentar conectar con los eventos del socket global si existe
-        this.conectarSocketGlobal();
-        
         console.log('✅ MonitoreoManager inicializado');
     }
 
-    conectarSocketGlobal() {
-        // Esperar a que controlManager inicie el socket para no abrir otro
-        const checkSocket = setInterval(() => {
-            if (window.controlManager && window.controlManager.socket) {
-                clearInterval(checkSocket);
-                const socket = window.controlManager.socket;
-                
-                // Escuchar nuevos movimientos para actualizar la tabla al instante
-                socket.on('movimiento_agregado', () => this.actualizarDatos());
-                
-                // Escuchar alertas
-                socket.on('alerta_obstaculo', (data) => {
-                    this.agregarAlerta({
-                        tipo: 'obstaculo',
-                        mensaje: data.mensaje,
-                        severidad: 'alta',
-                        timestamp: data.timestamp
-                    });
-                    this.actualizarMetricasRapidas();
-                });
+    // ==================== CONEXIÓN REAL-TIME ====================
 
-                console.log('🔌 Monitoreo sincronizado con Socket.IO');
-            }
-        }, 1000);
+    inicializarSocketIO() {
+        console.log('🔌 Conectando Socket.IO en Monitoreo...');
+        this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
+
+        this.socket.on('connect', () => {
+            document.querySelector('.estado-conexion').innerHTML = 
+                '<span class="status-indicator status-online pulse"></span> Conectado';
+        });
+
+        this.socket.on('disconnect', () => {
+            document.querySelector('.estado-conexion').innerHTML = 
+                '<span class="status-indicator status-offline"></span> Desconectado';
+        });
+
+        // Si ocurre un movimiento, actualizamos la tabla inmediatamente
+        this.socket.on('movimiento_agregado', () => {
+            this.actualizarDatos();
+        });
+
+        // Si ocurre una alerta de obstáculo, la mostramos
+        this.socket.on('alerta_obstaculo', (data) => {
+            this.agregarAlertaVisual(data);
+            this.actualizarDatos(); // Recargar lista de alertas
+        });
     }
 
-    // ==================== ACTUALIZACIÓN DE DATOS ====================
+    // ==================== CARGA DE DATOS (API REST) ====================
 
     async actualizarDatos() {
         try {
-            // 1. Estado General
-            const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
-            const dataEstado = await resEstado.json();
-
-            // 2. Métricas para Gráficas
+            // A. Obtener Historial (La tabla de 10 movimientos)
+            const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
+            const dataHist = await resHist.json();
+            
+            // B. Obtener Métricas Generales
             const resMetricas = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMetricas = await resMetricas.json();
 
-            // 3. 🔥 HISTORIAL (Lo que pediste)
-            const resHistorial = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
-            const dataHistorial = await resHistorial.json();
-
-            // 4. Alertas
+            // C. Obtener Estado General (KPIs)
+            const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
+            const dataEstado = await resEstado.json();
+            
+            // D. Obtener Alertas
             const resAlertas = await fetch(`${this.backendUrl}/api/alertas`);
             const dataAlertas = await resAlertas.json();
 
-            // Guardar estado
+            // Actualizar Estado Local
             this.estadoApp.metricas = dataMetricas;
             this.estadoApp.ultimaActualizacion = new Date();
 
             // Renderizar UI
-            this.actualizarInterfaz(dataEstado);
-            this.actualizarEstadisticas(dataMetricas);
-            this.renderizarTablaHistorial(dataHistorial.movimientos); // <--- AQUÍ ESTÁ LA TABLA
-            
-            if (dataAlertas.alertas && dataAlertas.alertas.length > 0) {
-                this.renderizarAlertas(dataAlertas.alertas);
-            }
-
+            if (dataHist.success) this.renderizarTablaHistorial(dataHist.movimientos);
+            this.actualizarKPIs(dataEstado);
             this.actualizarGrafico();
+            if (dataAlertas.alertas) this.renderizarListaAlertas(dataAlertas.alertas);
+            this.actualizarResumenManiobras(dataMetricas);
 
         } catch (error) {
             console.error("Error actualizando monitoreo:", error);
         }
     }
 
-    // ==================== RENDERIZADO DE TABLA HISTORIAL ====================
+    // ==================== RENDERIZADO DE TABLA (Tu requerimiento principal) ====================
 
     renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
         if (!container) return;
 
         if (!movimientos || movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-4">Sin movimientos recientes</div>';
+            container.innerHTML = '<div class="text-center text-muted py-5">Sin movimientos registrados</div>';
             return;
         }
 
-        // Crear estructura de tabla limpia
         let html = `
             <div class="table-responsive">
-                <table class="table table-borderless text-white mb-0" style="font-size: 0.9rem;">
+                <table class="table table-dark table-hover table-sm mb-0" style="background: transparent;">
                     <thead>
-                        <tr class="text-muted border-bottom border-secondary">
-                            <th>Acción</th>
+                        <tr class="text-muted" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <th><i class="fas fa-bolt me-1"></i>Acción</th>
                             <th>Tipo</th>
                             <th>Duración</th>
                             <th class="text-end">Hora</th>
@@ -118,113 +124,130 @@ class MonitoreoManager {
         `;
 
         movimientos.forEach(mov => {
-            const fecha = new Date(mov.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            // Estilos según tipo
-            const badgeClass = mov.tipo_ejecucion === 'manual' ? 'bg-primary' : 
-                               mov.tipo_ejecucion === 'automatica' ? 'bg-danger' : 'bg-info';
-            
-            // Icono según movimiento
-            let icono = 'fa-arrow-right';
-            const st = mov.status_texto.toLowerCase();
-            if(st.includes('adelante')) icono = 'fa-arrow-up';
-            else if(st.includes('atrás') || st.includes('atras')) icono = 'fa-arrow-down';
-            else if(st.includes('detener')) icono = 'fa-stop';
-            else if(st.includes('giro') || st.includes('vuelta')) icono = 'fa-sync';
+            // Formatear fecha
+            const fechaObj = new Date(mov.fecha_hora);
+            const hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            // Estilo según tipo
+            let badgeColor = 'bg-secondary';
+            if (mov.tipo_ejecucion === 'manual') badgeColor = 'bg-primary'; // Azul
+            if (mov.tipo_ejecucion === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
+            if (mov.tipo_ejecucion === 'automatica') badgeColor = 'bg-danger'; // Rojo (Evasión)
+
+            // Icono según texto
+            let icon = 'fa-arrow-right';
+            const txt = (mov.status_texto || '').toLowerCase();
+            if (txt.includes('adelante')) icon = 'fa-arrow-up';
+            else if (txt.includes('atras') || txt.includes('atrás')) icon = 'fa-arrow-down';
+            else if (txt.includes('giro') || txt.includes('vuelta')) icon = 'fa-sync';
+            else if (txt.includes('detener')) icon = 'fa-stop-circle';
 
             html += `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <tr>
                     <td>
-                        <i class="fas ${icono} me-2" style="color: var(--accent-cyan); width: 20px;"></i>
+                        <span style="color: var(--accent-cyan); width: 20px; display:inline-block; text-align:center;">
+                            <i class="fas ${icon}"></i>
+                        </span> 
                         ${mov.status_texto}
                     </td>
-                    <td><span class="badge ${badgeClass} bg-opacity-75" style="font-size: 0.7rem;">${mov.tipo_ejecucion}</span></td>
-                    <td>${mov.duracion_segundos}s</td>
-                    <td class="text-end text-muted">${fecha}</td>
+                    <td><span class="badge ${badgeColor}" style="font-size: 0.7rem;">${mov.tipo_ejecucion}</span></td>
+                    <td class="text-white-50">${mov.duracion_segundos}s</td>
+                    <td class="text-end text-muted small">${hora}</td>
                 </tr>
             `;
         });
 
-        html += `</tbody></table></div>`;
+        html += '</tbody></table></div>';
         container.innerHTML = html;
     }
 
-    // ==================== OTRAS ACTUALIZACIONES UI ====================
+    // ==================== KPIs y ALERTAS ====================
 
-    actualizarInterfaz(data) {
-        // Actualizar tarjetas superiores
+    actualizarKPIs(data) {
         const setText = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-
-        setText('metricMovimientos', data.estadisticas?.total_movimientos || 0);
-        setText('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
         
-        // Estado conexión Robot
+        setText('metricMovimientos', data.estadisticas?.total_movimientos || 0);
+        setText('metricTiempo', (data.estadisticas?.dias_activo || 1) + 'd');
+        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
+
+        // Estado conexión Robot (Viene del backend)
         const elEstado = document.getElementById('metricEstado');
         if (elEstado) {
             const conectado = data.estado_ws_arduino === 'Conectado';
             elEstado.innerHTML = conectado 
-                ? '<span class="text-success"><i class="fas fa-wifi me-2"></i>Online</span>'
-                : '<span class="text-danger"><i class="fas fa-wifi-slash me-2"></i>Offline</span>';
+                ? '<span class="text-success fw-bold">En Línea</span>' 
+                : '<span class="text-danger fw-bold">Offline</span>';
         }
-
-        // Info Footer
-        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
-        const infoServidor = document.getElementById('infoServidor');
-        if(infoServidor) infoServidor.textContent = 'Conectado';
     }
 
-    actualizarEstadisticas(data) {
-        // Contadores específicos
-        let counts = { adelante: 0, atras: 0, giros: 0, vueltas: 0 };
-        
-        if (data.movimientos_por_tipo) {
-            data.movimientos_por_tipo.forEach(m => {
-                const txt = m.status_texto.toLowerCase();
-                if (txt.includes('adelante')) counts.adelante += m.cantidad;
-                else if (txt.includes('atras') || txt.includes('atrás')) counts.atras += m.cantidad;
-                else if (txt.includes('giro')) counts.giros += m.cantidad;
-                else if (txt.includes('vuelta')) counts.vueltas += m.cantidad;
-            });
-        }
-
-        const setText = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-        setText('statAdelante', counts.adelante);
-        setText('statAtras', counts.atras);
-        setText('statGiros', counts.giros);
-        setText('statVueltas', counts.vueltas);
-    }
-
-    renderizarAlertas(alertas) {
+    renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
-        if (!container) return;
+        const badge = document.getElementById('metricAlertas');
+        const badgeSide = document.getElementById('contadorAlertas');
+        
+        if(badge) badge.textContent = alertas.length;
+        if(badgeSide) badgeSide.textContent = alertas.length;
 
+        if (!container) return;
         if (alertas.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-4">Sin alertas recientes</div>';
+            container.innerHTML = '<div class="text-center text-muted py-4">Sin alertas</div>';
             return;
         }
-
-        // Actualizar contador badge
-        const badge = document.getElementById('contadorAlertas');
-        if(badge) badge.textContent = alertas.length;
 
         let html = '';
         alertas.forEach(alerta => {
             const fecha = new Date(alerta.fecha_hora || alerta.timestamp).toLocaleTimeString();
-            const esGrave = alerta.status_clave === 1; // Asumiendo 1 es obstáculo frontal grave
+            // Detectar si es grave (status 1 = obstaculo frontal)
+            const grave = alerta.status_clave === 1; 
+            const color = grave ? 'danger' : 'warning';
+            const icono = grave ? 'fa-exclamation-circle' : 'fa-exclamation-triangle';
 
             html += `
-                <div class="alert-item mb-2 p-2 rounded border-start border-4 ${esGrave ? 'border-danger bg-danger bg-opacity-10' : 'border-warning bg-warning bg-opacity-10'}">
-                    <div class="d-flex justify-content-between">
-                        <strong><i class="fas fa-exclamation-triangle me-2"></i>${alerta.status_texto || 'Alerta'}</strong>
-                        <small class="opacity-75">${fecha}</small>
+                <div class="alert alert-${color} mb-2 p-2 d-flex justify-content-between align-items-center" style="font-size: 0.85rem;">
+                    <div>
+                        <i class="fas ${icono} me-2"></i>
+                        <strong>${alerta.status_texto || 'Obstáculo'}</strong>
+                        <div class="small opacity-75">${alerta.mensaje || 'Detectado por sensor'}</div>
                     </div>
+                    <span class="small">${fecha}</span>
                 </div>
             `;
         });
         container.innerHTML = html;
     }
 
-    // ==================== GRÁFICOS ====================
+    agregarAlertaVisual(data) {
+        // Solo para efecto visual inmediato si llega por socket
+        // La lista real se recarga con actualizarDatos()
+        const container = document.getElementById('alertasContainer');
+        if (container) {
+            const div = document.createElement('div');
+            div.className = 'alert alert-danger mb-2 p-2 border-3 border-start border-danger fade show';
+            div.innerHTML = `<strong>¡NUEVA ALERTA!</strong> ${data.mensaje} <small class="float-end">Ahora</small>`;
+            container.prepend(div);
+        }
+    }
+
+    actualizarResumenManiobras(data) {
+        // Contadores inferiores
+        let c = { adelante: 0, atras: 0, giros: 0, vueltas: 0 };
+        if (data.movimientos_por_tipo) {
+            data.movimientos_por_tipo.forEach(m => {
+                const t = m.status_texto.toLowerCase();
+                if (t.includes('adelante')) c.adelante += m.cantidad;
+                else if (t.includes('atras') || t.includes('atrás')) c.atras += m.cantidad;
+                else if (t.includes('giro')) c.giros += m.cantidad;
+                else if (t.includes('vuelta')) c.vueltas += m.cantidad;
+            });
+        }
+        const setT = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+        setT('statAdelante', c.adelante);
+        setT('statAtras', c.atras);
+        setT('statGiros', c.giros);
+        setT('statVueltas', c.vueltas);
+    }
+
+    // ==================== GRÁFICO CHART.JS ====================
 
     inicializarGrafico() {
         const ctx = document.getElementById('actividadChart');
@@ -240,20 +263,17 @@ class MonitoreoManager {
                     borderColor: '#ff2d95',
                     backgroundColor: 'rgba(255, 45, 149, 0.1)',
                     borderWidth: 2,
-                    tension: 0.4,
                     fill: true,
-                    pointRadius: 3
+                    tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { color: '#ffffff' } }
-                },
+                plugins: { legend: { labels: { color: '#fff' } } },
                 scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#b0b0b0' } },
-                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#b0b0b0' } }
+                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } },
+                    y: { grid: { color: '#333' }, ticks: { color: '#aaa' }, beginAtZero: true }
                 }
             }
         });
@@ -262,19 +282,19 @@ class MonitoreoManager {
     actualizarGrafico() {
         const chart = this.estadoApp.actividadChart;
         if (!chart || !this.estadoApp.metricas) return;
-
-        const data = this.estadoApp.metricas;
         
-        if (this.estadoApp.vistaGrafico === 'hora' && data.actividad_por_hora) {
+        const data = this.estadoApp.metricas;
+        const isHourly = this.estadoApp.vistaGrafico === 'hora';
+
+        if (isHourly && data.actividad_por_hora) {
             chart.data.labels = data.actividad_por_hora.map(d => `${d.hora}:00`);
             chart.data.datasets[0].data = data.actividad_por_hora.map(d => d.movimientos);
-            chart.data.datasets[0].label = 'Actividad por Hora';
-        } else if (this.estadoApp.vistaGrafico === 'tipo' && data.movimientos_por_tipo) {
+            chart.data.datasets[0].label = 'Movimientos por Hora';
+        } else if (!isHourly && data.movimientos_por_tipo) {
             chart.data.labels = data.movimientos_por_tipo.map(d => d.status_texto);
             chart.data.datasets[0].data = data.movimientos_por_tipo.map(d => d.cantidad);
-            chart.data.datasets[0].label = 'Total por Tipo';
+            chart.data.datasets[0].label = 'Movimientos por Tipo';
         }
-
         chart.update();
     }
 
@@ -283,28 +303,29 @@ class MonitoreoManager {
         this.actualizarGrafico();
     }
 
-    // Métricas Avanzadas (Modal)
+    // Modal de Métricas Avanzadas de BD
     async verMetricasAvanzadas() {
         try {
             const res = await fetch(`${this.backendUrl}/api/estadisticas-obstaculos`);
             const data = await res.json();
             
-            const div = document.getElementById('metricasContenido');
-            if(div && data.obstaculos_por_tipo) {
-                div.innerHTML = `
-                    <h6 class="mb-3">Desglose de Obstáculos</h6>
+            const container = document.getElementById('metricasContenido');
+            if (container && data.obstaculos_por_tipo) {
+                container.innerHTML = `
+                    <h6 class="mb-3 border-bottom pb-2 border-secondary">Estadísticas de Obstáculos (BD)</h6>
                     <ul class="list-group">
                         ${data.obstaculos_por_tipo.map(o => `
-                            <li class="list-group-item d-flex justify-content-between align-items-center bg-dark text-white">
-                                ${o.status_texto}
-                                <span class="badge bg-primary rounded-pill">${o.cantidad}</span>
+                            <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center">
+                                <span>${o.status_texto}</span>
+                                <span class="badge bg-danger rounded-pill">${o.cantidad} eventos</span>
                             </li>
                         `).join('')}
                     </ul>
+                    <p class="text-muted small mt-3 text-center">Datos históricos de los últimos 7 días</p>
                 `;
                 new bootstrap.Modal(document.getElementById('metricasModal')).show();
             }
-        } catch(e) { console.error(e); }
+        } catch (e) { console.error(e); }
     }
 }
 

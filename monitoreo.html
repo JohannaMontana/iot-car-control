@@ -11,7 +11,6 @@
 </head>
 <body>
     <div class="container-fluid py-4">
-        <!-- Header -->
         <div class="row mb-4">
             <div class="col text-center">
                 <h1 class="gradient-text fw-bold">
@@ -30,159 +29,145 @@
             </div>
         </div>
 
-        <!-- Métricas Principales -->
         <div class="row mb-4">
-            <div class="col-md-3">
+            <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card">
-                    <i class="fas fa-bolt fa-2x" style="color: var(--accent-cyan);"></i>
+                    <i class="fas fa-wifi fa-2x" style="color: var(--accent-cyan);"></i>
                     <div class="metric-value" id="metricEstado">-</div>
-                    <div class="metric-label">Estado del Sistema</div>
+                    <div class="metric-label">Estado Robot</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card">
                     <i class="fas fa-running fa-2x" style="color: var(--accent-pink);"></i>
                     <div class="metric-value" id="metricMovimientos">0</div>
-                    <div class="metric-label">Movimientos Hoy</div>
+                    <div class="metric-label">Movimientos Totales</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card">
                     <i class="fas fa-exclamation-triangle fa-2x" style="color: #ff9500;"></i>
                     <div class="metric-value" id="metricAlertas">0</div>
                     <div class="metric-label">Alertas Activas</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card">
                     <i class="fas fa-clock fa-2x" style="color: var(--accent-purple);"></i>
-                    <div class="metric-value" id="metricTiempo">0h</div>
-                    <div class="metric-label">Tiempo Activo</div>
+                    <div class="metric-value" id="metricTiempo">0d</div>
+                    <div class="metric-label">Días Activo</div>
                 </div>
             </div>
         </div>
 
         <div class="row">
-            <!-- Columna Principal -->
             <div class="col-lg-8">
-                <!-- Gráfico de Actividad -->
-                <div class="glass-panel">
+                
+                <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="mb-0">
                             <i class="fas fa-chart-bar me-2" style="color: var(--accent-pink);"></i>
                             Actividad del Sistema
                         </h4>
                         <div class="btn-group">
-                            <button class="btn btn-sm" onclick="monitoreoManager.cambiarVistaGrafico('hora')" 
-                                    style="background: rgba(255,255,255,0.1); color: var(--text-light);">
+                            <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.cambiarVistaGrafico('hora')">
                                 <i class="fas fa-clock me-1"></i>Por Hora
                             </button>
-                            <button class="btn btn-sm" onclick="monitoreoManager.cambiarVistaGrafico('tipo')" 
-                                    style="background: rgba(255,255,255,0.1); color: var(--text-light);">
+                            <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.cambiarVistaGrafico('tipo')">
                                 <i class="fas fa-list me-1"></i>Por Tipo
                             </button>
                         </div>
                     </div>
-                    <div class="movement-chart">
+                    <div class="movement-chart" style="height: 250px;">
                         <canvas id="actividadChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Estadísticas de Movimientos -->
                 <div class="glass-panel">
-                    <h4 class="mb-4">
-                        <i class="fas fa-chart-pie me-2" style="color: var(--accent-pink);"></i>
-                        Distribución de Movimientos
-                    </h4>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <div class="stat-value" id="statAdelante">0</div>
-                            <div class="stat-label">Adelante</div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">
+                            <i class="fas fa-history me-2" style="color: var(--accent-cyan);"></i>
+                            Historial de Movimientos (Últimos 10)
+                        </h4>
+                        <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.actualizarDatos()">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="historialMovimientos" class="table-container">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+                            <p>Cargando historial...</p>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="statAtras">0</div>
-                            <div class="stat-label">Atrás</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel mt-4">
+                    <h5 class="mb-3 text-muted">Resumen de Maniobras</h5>
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <h3 id="statAdelante" class="fw-bold text-white">0</h3>
+                            <small class="text-muted">Adelante</small>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="statGiros">0</div>
-                            <div class="stat-label">Giros</div>
+                        <div class="col-3">
+                            <h3 id="statAtras" class="fw-bold text-white">0</h3>
+                            <small class="text-muted">Atrás</small>
                         </div>
-                        <div class="stat-item">
-                            <div class="stat-value" id="statVueltas">0</div>
-                            <div class="stat-label">Vueltas</div>
+                        <div class="col-3">
+                            <h3 id="statGiros" class="fw-bold text-white">0</h3>
+                            <small class="text-muted">Giros</small>
+                        </div>
+                        <div class="col-3">
+                            <h3 id="statVueltas" class="fw-bold text-white">0</h3>
+                            <small class="text-muted">Vueltas</small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Columna Lateral -->
             <div class="col-lg-4">
-                <!-- Alertas en Tiempo Real -->
-                <div class="glass-panel">
+                
+                <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">
                             <i class="fas fa-bell me-2" style="color: #ff9500;"></i>
-                            Alertas Recientes
+                            Log de Alertas
                         </h5>
-                        <span class="badge" id="contadorAlertas" 
-                              style="background: var(--accent-pink);">0</span>
+                        <span class="badge bg-danger" id="contadorAlertas">0</span>
                     </div>
-                    <div id="alertasContainer" class="alert-history">
+                    <div id="alertasContainer" class="alert-history" style="max-height: 300px; overflow-y: auto;">
                         <div class="text-center text-muted py-4">
-                            <i class="fas fa-bell-slash fa-2x mb-2"></i><br>
-                            No hay alertas recientes
+                            <i class="fas fa-check-circle fa-2x mb-2 text-success opacity-50"></i><br>
+                            Sistema nominal
                         </div>
                     </div>
                 </div>
 
-                <!-- Información del Dispositivo -->
                 <div class="glass-panel">
                     <h5 class="mb-3">
-                        <i class="fas fa-microchip me-2" style="color: var(--accent-cyan);"></i>
-                        Información del Sistema
+                        <i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>
+                        Estado de Conexión
                     </h5>
                     
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Dispositivo ID:</span>
-                            <span class="badge" style="background: var(--accent-purple);">Carrito-001</span>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Estado Conexión:</span>
-                            <span id="infoEstado" class="badge" style="background: #ff4444;">
-                                <i class="fas fa-wifi-slash me-1"></i>Offline
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Última Actualización:</span>
+                    <ul class="list-group list-group-flush bg-transparent">
+                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                            <span>Servidor Python:</span>
+                            <span class="text-success fw-bold" id="infoServidor">Conectado</span>
+                        </li>
+                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                            <span>WebSocket Robot:</span>
+                            <span id="metricEstado" class="fw-bold">-</span>
+                        </li>
+                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-0">
+                            <span>Última Sync:</span>
                             <span id="infoActualizacion" class="text-muted">-</span>
-                        </div>
-                    </div>
+                        </li>
+                    </ul>
 
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span>Servidor Backend:</span>
-                            <span class="text-success">
-                                <i class="fas fa-check-circle me-1"></i>
-                                <span id="infoServidor">Conectado</span>
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="d-grid gap-2 mt-3">
-                        <button class="btn" onclick="monitoreoManager.actualizarDatos()" 
-                                style="background: rgba(255,255,255,0.1); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);">
-                            <i class="fas fa-refresh me-2"></i>Actualizar Datos
-                        </button>
-                        <button class="btn" onclick="monitoreoManager.verMetricasAvanzadas()" 
-                                style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); color: white;">
-                            <i class="fas fa-chart-line me-2"></i>Métricas Avanzadas
+                    <div class="d-grid gap-2 mt-4">
+                        <button class="btn btn-primary" onclick="monitoreoManager.verMetricasAvanzadas()" 
+                                style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none;">
+                            <i class="fas fa-database me-2"></i>Ver Métricas BD
                         </button>
                     </div>
                 </div>
@@ -190,31 +175,23 @@
         </div>
     </div>
 
-    <!-- Modal para Métricas Avanzadas -->
     <div class="modal fade" id="metricasModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content" style="background: var(--secondary-bg); color: var(--text-light);">
-                <div class="modal-header border-0">
-                    <h5 class="modal-title gradient-text">
-                        <i class="fas fa-chart-line me-2"></i>Métricas Avanzadas
-                    </h5>
+            <div class="modal-content bg-dark text-white border border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title"><i class="fas fa-database me-2"></i>Base de Datos: Obstáculos</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div id="metricasContenido">
-                        Cargando métricas avanzadas...
-                    </div>
+                <div class="modal-body" id="metricasContenido">
+                    Cargando...
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="js/socket-handler.js"></script>
     <script src="js/monitoreo.js"></script>
 </body>
 </html>
