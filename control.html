@@ -26,32 +26,32 @@
                         <i class="fas fa-chart-line me-1"></i>Panel de Monitoreo
                     </a>
                 </p>
-                <span id="estadoConexion" class="badge bg-secondary">
-                    <i class="fas fa-robot me-1"></i>Estado Robot: Desconocido
-                </span>
             </div>
         </div>
 
-        <div class="row justify-content-center">
-            <div class="col-lg-6 col-md-8">
-                <div class="glass-panel">
-                    
-                    <div class="mb-4 p-3 rounded border border-secondary bg-black bg-opacity-25 text-center">
-                        <label class="text-light small mb-2 d-block">
-                            <i class="fas fa-tachometer-alt me-1"></i>POTENCIA DEL MOTOR
-                        </label>
+        <div class="row">
+            <div class="col-lg-8">
+                
+                <div class="glass-panel mb-4">
+                    <h4 class="mb-4">
+                        <i class="fas fa-gamepad me-2" style="color: var(--accent-pink);"></i>
+                        Control de Movimiento
+                    </h4>
+
+                    <div class="mb-4 p-2 rounded border border-secondary bg-dark bg-opacity-25 text-center">
+                        <label class="text-white small mb-2"><i class="fas fa-tachometer-alt me-2"></i>POTENCIA DEL MOTOR</label>
                         <div class="btn-group w-100" role="group">
                             <input type="radio" class="btn-check" name="velocidad" id="velBaja" value="130" autocomplete="off">
-                            <label class="btn btn-outline-success btn-sm" for="velBaja">Lenta (130)</label>
+                            <label class="btn btn-outline-success btn-sm" for="velBaja">Lenta</label>
 
                             <input type="radio" class="btn-check" name="velocidad" id="velMedia" value="180" autocomplete="off" checked>
-                            <label class="btn btn-outline-warning btn-sm" for="velMedia">Media (180)</label>
+                            <label class="btn btn-outline-warning btn-sm" for="velMedia">Media</label>
 
                             <input type="radio" class="btn-check" name="velocidad" id="velAlta" value="255" autocomplete="off">
-                            <label class="btn btn-outline-danger btn-sm" for="velAlta">Turbo (255) 🔥</label>
+                            <label class="btn btn-outline-danger btn-sm" for="velAlta">Turbo 🔥</label>
                         </div>
                     </div>
-
+                    
                     <div class="control-grid mb-4">
                         <button class="control-btn btn-up-left" onclick="controlManager.moverCarrito(5)" title="Curva Izq Adelante">
                             <i class="fas fa-arrow-turn-up"></i>
@@ -85,42 +85,171 @@
                         </button>
                     </div>
 
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <small class="text-muted mb-2 d-block text-center">Secuencias Automáticas (Demos):</small>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarCircuitoCuadrado()" 
-                                        style="background: rgba(138, 43, 226, 0.3); color: white; border: 1px solid var(--accent-purple);">
-                                    <i class="fas fa-square me-1"></i>Cuadrado
+                    <div class="row text-center mt-4">
+                        <div class="col-md-6 mb-2">
+                            <button class="btn w-100" onclick="demoManager.ejecutarCircuitoCuadrado()" 
+                                    style="background: rgba(138, 43, 226, 0.2); color: white; border: 1px solid var(--accent-purple);">
+                                <i class="fas fa-square me-2"></i>Circuito Cuadrado
+                            </button>
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            <button class="btn w-100" onclick="demoManager.ejecutarZigZag()" 
+                                    style="background: rgba(0, 255, 255, 0.2); color: white; border: 1px solid var(--accent-cyan);">
+                                <i class="fas fa-wave-square me-2"></i>Zig-Zag
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row text-center mt-2 g-2">
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(11)">360° Izq</button>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-warning w-100" onclick="controlManager.simularObstaculo()">⚠️ Test Alerta</button>
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(10)">360° Der</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel mb-4" id="editorDemo" style="display: none;">
+                    <h4 class="mb-3">
+                        <i class="fas fa-edit me-2" style="color: var(--accent-cyan);"></i>
+                        Editor de Secuencia DEMO
+                    </h4>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" id="demoNombre" class="form-control" 
+                                   style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+                                   placeholder="Nombre de la demo">
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" id="demoDescripcion" class="form-control" 
+                                   style="background: var(--secondary-bg); color: var(--text-light); border: 1px solid rgba(255,255,255,0.2);"
+                                   placeholder="Descripción (opcional)">
+                        </div>
+                    </div>
+
+                    <div class="mb-3 p-3 border rounded border-secondary bg-dark bg-opacity-25">
+                        <label class="text-muted small mb-2">Agregar paso:</label>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text bg-secondary text-white">Duración (s)</span>
+                            <input type="number" id="duracionMovimientoDemo" class="form-control bg-dark text-white" value="3" min="1" max="10">
+                        </div>
+                        <div class="btn-group w-100 flex-wrap">
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(1)">⬆️ Adelante</button>
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(2)">⬇️ Atrás</button>
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(8)">↪️ Giro Der</button>
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(9)">↩️ Giro Izq</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="demoManager.agregarMovimiento(3)">🛑 Stop</button>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-muted">Secuencia actual:</label>
+                        <div id="movimientosDemo" class="border rounded p-3 mb-3" 
+                             style="background: rgba(255,255,255,0.05); min-height: 100px; max-height: 200px; overflow-y: auto;">
+                            <div class="text-center text-muted py-3">
+                                Agrega movimientos usando los botones de arriba 👆
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted" id="contadorMovimientos">0 movimientos</small>
+                            <div class="btn-group">
+                                <button class="btn btn-sm" onclick="demoManager.ocultarEditor()" 
+                                        style="background: #ff4444; color: white;">
+                                    <i class="fas fa-times me-1"></i>Cancelar
                                 </button>
-                                <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarZigZag()" 
-                                        style="background: rgba(0, 255, 255, 0.3); color: white; border: 1px solid var(--accent-cyan);">
-                                    <i class="fas fa-wave-square me-1"></i>Zig-Zag
+                                <button class="btn btn-sm" onclick="demoManager.guardarDemo()" 
+                                        style="background: var(--accent-cyan); color: white;">
+                                    <i class="fas fa-save me-1"></i>Guardar Demo
                                 </button>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="row mt-3 g-2">
-                        <div class="col-4">
-                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(11)">
-                                <i class="fas fa-sync fa-flip-horizontal me-1"></i>360° Izq
+                <div class="glass-panel">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="mb-0">
+                            <i class="fas fa-play-circle me-2" style="color: var(--accent-pink);"></i>
+                            Mis Secuencias
+                        </h4>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.cargarDemos()">
+                                <i class="fas fa-sync"></i>
                             </button>
-                        </div>
-                        <div class="col-4">
-                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(10)">
-                                <i class="fas fa-sync me-1"></i>360° Der
+                            <button class="btn btn-sm" onclick="demoManager.mostrarEditor()" 
+                                    style="background: var(--accent-cyan); color: white;">
+                                <i class="fas fa-plus me-1"></i>Crear Nueva
                             </button>
                         </div>
                     </div>
-
+                    <div id="listaDemos">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Cargando...
+                        </div>
+                    </div>
                 </div>
+            </div>
+
+            <div class="col-lg-4">
+                
+                <div class="glass-panel mb-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>
+                        Estado del Sistema
+                    </h5>
+                    
+                    <ul class="list-group list-group-flush bg-transparent">
+                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                            <span>Conexión Web:</span>
+                            <span id="estadoConexion" class="badge bg-secondary">
+                                <i class="fas fa-wifi me-1"></i>Conectando...
+                            </span>
+                        </li>
+                        <li class="list-group-item bg-transparent text-white border-0 pt-3">
+                            <label class="small text-muted mb-1">Duración manual (opcional):</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-secondary text-white"><i class="fas fa-clock"></i></span>
+                                <input type="number" id="duracionMovimiento" class="form-control bg-dark text-white" value="0" placeholder="0 = Continuo">
+                            </div>
+                            <small class="text-white-50" style="font-size: 0.7rem;">* 0 = Movimiento continuo hasta STOP</small>
+                        </li>
+                    </ul>
+
+                    <button class="btn w-100 mt-3 btn-outline-light" onclick="controlManager.actualizarEstado()">
+                        <i class="fas fa-refresh me-2"></i>Refrescar
+                    </button>
+                </div>
+
+                <div class="glass-panel mb-4">
+                    <h6 class="text-muted mb-3">Última Acción Realizada:</h6>
+                    <div id="ultimoMovimiento" class="movement-item p-3 rounded border border-secondary">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-robot fa-2x mb-2"></i><br>
+                            Sin datos
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <h5 class="mb-3">
+                        <i class="fas fa-history me-2" style="color: var(--accent-pink);"></i>
+                        Historial (5)
+                    </h5>
+                    <div id="historialMovimientos" class="movement-history" style="font-size: 0.85rem;">
+                        </div>
+                </div>
+
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="js/demos.js"></script>
     <script src="js/control.js"></script>
 </body>
