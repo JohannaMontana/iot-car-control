@@ -1,6 +1,6 @@
 class ControlManager {
     constructor() {
-        this.backendUrl = 'http://54.147.92.50:5500';
+        this.backendUrl = 'http://54.147.92.50:5500'; // Tu IP de EC2
         this.estadoApp = {
             conectado: false,
             ultimoMovimiento: null,
@@ -8,39 +8,38 @@ class ControlManager {
             movimientos: []
         };
         
-        // Variable para la instancia de Socket.IO
         this.socket = null;
         
-        this.inicializarApp();
+        // Iniciar cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.inicializarApp());
+        } else {
+            this.inicializarApp();
+        }
     }
 
     inicializarApp() {
-        // 1. Iniciar conexión Socket.IO (La forma correcta para la Web)
         this.inicializarSocketIO();
-        
-        // 2. Cargar estado inicial vía HTTP
         this.actualizarEstado();
         
-        // 3. Cargar demos si existe el manager
+        // Cargar demos si existe el manager
         if (window.demoManager && typeof window.demoManager.cargarDemos === 'function') {
             window.demoManager.cargarDemos();
         }
         
-        console.log('✅ ControlManager inicializado (HTTP + Socket.IO)');
+        console.log('✅ ControlManager inicializado (HTTP + Socket.IO + Velocidad)');
     }
 
     inicializarSocketIO() {
-        // Conectar usando la librería cliente de Socket.IO
         console.log('🔌 Conectando Socket.IO...');
         this.socket = io(this.backendUrl, {
-            transports: ['websocket', 'polling'], // Intentar WebSocket primero
+            transports: ['websocket', 'polling'],
             reconnection: true
         });
 
         // === EVENTOS DE CONEXIÓN ===
-        
         this.socket.on('connect', () => {
-            console.log('✅ Socket.IO Conectado:', this.socket.id);
+            console.log('✅ Socket.IO Conectado');
             this.actualizarEstadoConexion(true);
         });
 
@@ -49,121 +48,90 @@ class ControlManager {
             this.actualizarEstadoConexion(false);
         });
 
-        this.socket.on('connect_error', (error) => {
-            console.error('Error de conexión Socket.IO:', error);
-            this.actualizarEstadoConexion(false);
-        });
+        // === EVENTOS DEL SISTEMA ===
 
-        // === EVENTOS DEL NEGOCIO (Lo que emite tu app.py) ===
-
-        // 1. Movimiento Agregado
+        // 1. Confirmación de movimiento
         this.socket.on('movimiento_agregado', (data) => {
-            console.log('📩 Evento recibido: movimiento_agregado', data);
-            this.mostrarNotificacion(`Movimiento ejecutado: ${this.obtenerNombreMovimiento(data.status_clave)}`, 'success');
-            // Actualizar la UI inmediatamente
+            this.mostrarNotificacion(`🚀 Ejecutando: ${this.obtenerNombreMovimiento(data.status_clave)} (Vel: ${data.velocidad})`, 'success');
             setTimeout(() => this.actualizarEstado(), 500);
         });
 
-        // 2. Movimiento Detenido
+        // 2. Confirmación de detención
         this.socket.on('movimiento_detenido', (data) => {
             this.mostrarNotificacion('🛑 ' + data.mensaje, 'warning');
             this.actualizarEstado();
         });
 
-        // 3. Alerta de Obstáculo
+        // 3. 🔥 ALERTA DE OBSTÁCULO (CRÍTICO)
         this.socket.on('alerta_obstaculo', (data) => {
-            console.warn('🚨 Obstáculo:', data);
-            this.mostrarNotificacion(`⚠️ Obstáculo detectado (Tipo ${data.tipo_obstaculo})`, 'danger');
-            
-            // Agregar a la lista local de alertas
-            const alerta = {
-                mensaje: data.mensaje,
-                timestamp: data.timestamp,
-                tipo: data.tipo_obstaculo
-            };
-            this.estadoApp.alertas.unshift(alerta);
-            this.actualizarAlertas();
+            console.warn('🚨 ALERTA OBSTÁCULO:', data);
+            this.mostrarAlertaObstaculo(data); // Mostrar popup grande
+            this.actualizarEstado();
         });
 
-        // 4. Progreso de Demo
+        // 4. Eventos de Demo
         this.socket.on('demo_progreso', (data) => {
-            // Si tienes el DemoManager, pasale los datos
-            if (window.demoManager && typeof window.demoManager.mostrarProgresoSimple === 'function') {
-                // Adaptamos para usar tu función de progreso visual
-                // Nota: Podrías necesitar crear un método actualizarProgreso en demoManager
-                console.log(`Demo progreso: ${data.movimiento_actual}/${data.total_movimientos}`);
+            if (window.demoManager && window.demoManager.actualizarProgresoDemo) {
+                window.demoManager.actualizarProgresoDemo(data);
             }
         });
 
-        // 5. Demo Completada
         this.socket.on('demo_completada', (data) => {
             this.mostrarNotificacion(`✅ Demo "${data.nombre}" finalizada`, 'success');
-            if (window.demoManager && typeof window.demoManager.ocultarProgreso === 'function') {
-                window.demoManager.ocultarProgreso();
-            }
+            if (window.demoManager) window.demoManager.demoCompletada(data);
         });
     }
 
-    // === ENVÍO DE COMANDOS (Usamos HTTP POST para activar la cadena Backend -> Arduino) ===
+    // === LÓGICA DE VELOCIDAD ===
+    obtenerVelocidadSeleccionada() {
+        const radios = document.getElementsByName('velocidad');
+        for (const radio of radios) {
+            if (radio.checked) {
+                return parseInt(radio.value);
+            }
+        }
+        return 180; // Valor por defecto (Media)
+    }
+
+    // === ENVÍO DE COMANDOS ===
     
     async moverCarrito(statusClave) {
-        const duracion = document.getElementById('duracionMovimiento')?.value || 5;
+        const velocidad = this.obtenerVelocidadSeleccionada();
         const nombreMovimiento = this.obtenerNombreMovimiento(statusClave);
         
-        // IMPORTANTE: Usamos HTTP POST. 
-        // El backend recibe el POST y él se encarga de enviarlo por WebSocket al Arduino.
         try {
+            // Enviamos al Backend. El Backend se encarga de empujarlo al Arduino por WebSocket.
             const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status_clave: statusClave,
-                    duracion_segundos: parseInt(duracion)
+                    velocidad: velocidad,
+                    duracion_segundos: 0 // 0 = Continuo (hasta que demos STOP)
                 })
             });
             
             const result = await response.json();
             
-            if (result.success) {
-                // No necesitamos mostrar notificación aquí si esperamos el evento del socket,
-                // pero para feedback inmediato está bien dejarlo.
-                console.log('Comando enviado al servidor');
-            } else {
+            if (!result.success) {
                 this.mostrarNotificacion('Error: ' + result.error, 'danger');
             }
         } catch (error) {
             console.error('Error:', error);
-            this.mostrarNotificacion('Error de conexión con el servidor', 'danger');
+            this.mostrarNotificacion('Error de conexión', 'danger');
             this.actualizarEstadoConexion(false);
         }
     }
 
     async detenerCarrito() {
         try {
-            const response = await fetch(`${this.backendUrl}/api/detener`, {
+            await fetch(`${this.backendUrl}/api/detener`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             });
-            const result = await response.json();
-            if (!result.success) {
-                this.mostrarNotificacion('Error al detener: ' + result.error, 'danger');
-            }
         } catch (error) {
             console.error('Error:', error);
         }
-    }
-
-    // === UTILIDADES Y UI ===
-
-    obtenerNombreMovimiento(statusClave) {
-        const movimientos = {
-            1: 'Adelante', 2: 'Atrás', 3: 'Detener',
-            4: 'Vuelta Adelante Derecha', 5: 'Vuelta Adelante Izquierda',
-            6: 'Vuelta Atrás Derecha', 7: 'Vuelta Atrás Izquierda',
-            8: 'Giro 90° Derecha', 9: 'Giro 90° Izquierda',
-            10: 'Giro 360° Derecha', 11: 'Giro 360° Izquierda'
-        };
-        return movimientos[statusClave] || 'Movimiento ' + statusClave;
     }
 
     async simularObstaculo() {
@@ -171,11 +139,14 @@ class ControlManager {
             await fetch(`${this.backendUrl}/api/obstaculo`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status_clave: 1 })
+                body: JSON.stringify({ 
+                    status_clave: 1, // Obstáculo frontal
+                    dispositivo_id: 1 
+                })
             });
-            // La notificación llegará por el evento del socket 'alerta_obstaculo'
+            // La notificación visual llegará vía Socket.IO ('alerta_obstaculo')
         } catch (error) {
-            console.error('Error:', error);
+            console.error('Error simulando:', error);
         }
     }
 
@@ -187,11 +158,38 @@ class ControlManager {
                 body: JSON.stringify({ dispositivo_id: 1 })
             });
             const result = await response.json();
-            if (result.success) {
-                this.mostrarNotificacion('Ejecución reanudada', 'success');
-            }
+            if(result.success) this.mostrarNotificacion('Sistema reanudado', 'success');
         } catch (error) {
             this.mostrarNotificacion('Error reanudando', 'danger');
+        }
+    }
+
+    // === UI & UTILIDADES ===
+
+    obtenerNombreMovimiento(statusClave) {
+        const movimientos = {
+            1: 'Adelante', 2: 'Atrás', 3: 'Detener',
+            4: 'Vuelta Adelante Der', 5: 'Vuelta Adelante Izq',
+            6: 'Vuelta Atrás Der', 7: 'Vuelta Atrás Izq',
+            8: 'Giro 90° Der', 9: 'Giro 90° Izq',
+            10: 'Giro 360° Der', 11: 'Giro 360° Izq'
+        };
+        return movimientos[statusClave] || 'Movimiento ' + statusClave;
+    }
+
+    actualizarEstadoConexion(conectado) {
+        this.estadoApp.conectado = conectado;
+        const estadoElement = document.querySelector('.estado-conexion');
+        const indicator = estadoElement?.querySelector('.status-indicator');
+        
+        if (!estadoElement) return;
+        
+        if (conectado) {
+            indicator.className = 'status-indicator status-online pulse';
+            estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span> Conectado';
+        } else {
+            indicator.className = 'status-indicator status-offline';
+            estadoElement.innerHTML = '<span class="status-indicator status-offline"></span> Desconectado';
         }
     }
 
@@ -201,71 +199,35 @@ class ControlManager {
             const data = await response.json();
             
             if (data.ultimo_movimiento) {
-                this.estadoApp.ultimoMovimiento = data.ultimo_movimiento;
-                this.actualizarUltimoMovimiento();
+                this.actualizarWidgetUltimoMovimiento(data.ultimo_movimiento);
             }
             
-            if (data.movimientos_recientes) {
-                this.estadoApp.movimientos = data.movimientos_recientes;
-                this.actualizarHistorial();
+            // Actualizar estado del Arduino (Viene en el JSON del backend)
+            // Esto nos dice si el socket Python <-> Arduino está vivo
+            const arduinoStatus = document.getElementById('estadoConexion');
+            if(arduinoStatus) {
+                if(data.estado_ws_arduino === 'Conectado') {
+                    arduinoStatus.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Online';
+                    arduinoStatus.style.background = '#00ff88';
+                } else {
+                    arduinoStatus.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Offline';
+                    arduinoStatus.style.background = '#ff4444';
+                }
             }
 
-            // Actualizar estado de conexión del ARDUINO (Viene en el JSON de estado-actual)
-            this.actualizarEstadoArduino(data.estado_ws_arduino === 'Conectado');
-            
         } catch (error) {
-            console.error('Error actualizando estado:', error);
+            console.error('Error polling estado:', error);
         }
     }
 
-    actualizarEstadoArduino(conectado) {
-        const badge = document.getElementById('estadoArduino'); // Asegúrate de tener este elemento en tu HTML o créalo
-        if (badge) {
-            if (conectado) {
-                badge.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Online';
-                badge.className = 'badge bg-success';
-            } else {
-                badge.innerHTML = '<i class="fas fa-robot me-1"></i>Robot Offline';
-                badge.className = 'badge bg-danger';
-            }
-        }
-    }
-
-    actualizarEstadoConexion(conectado) {
-        this.estadoApp.conectado = conectado;
-        const estadoElement = document.querySelector('.estado-conexion');
-        const indicator = estadoElement?.querySelector('.status-indicator');
-        const conexionBadge = document.getElementById('estadoConexion');
-        
-        if (!estadoElement) return;
-        
-        if (conectado) {
-            indicator.className = 'status-indicator status-online pulse';
-            estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado (Socket.IO)';
-            if (conexionBadge) {
-                conexionBadge.innerHTML = '<i class="fas fa-wifi me-1"></i>Online';
-                conexionBadge.style.background = '#00ff88';
-            }
-        } else {
-            indicator.className = 'status-indicator status-offline';
-            estadoElement.innerHTML = '<span class="status-indicator status-offline"></span>Desconectado';
-            if (conexionBadge) {
-                conexionBadge.innerHTML = '<i class="fas fa-wifi-slash me-1"></i>Offline';
-                conexionBadge.style.background = '#ff4444';
-            }
-        }
-    }
-
-    actualizarUltimoMovimiento() {
-        const mov = this.estadoApp.ultimoMovimiento;
+    actualizarWidgetUltimoMovimiento(mov) {
         const container = document.getElementById('ultimoMovimiento');
-        
-        if (mov && container) {
+        if (container) {
             container.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${mov.status_texto}</strong><br>
-                        <small class="text-muted">${mov.duracion_segundos}s • ${mov.tipo_ejecucion}</small>
+                    <div class="text-start">
+                        <strong style="color: var(--accent-cyan);">${mov.status_texto}</strong><br>
+                        <small class="text-muted">${mov.tipo_ejecucion}</small>
                     </div>
                     <div class="text-end">
                         <small class="text-muted">${new Date(mov.fecha_hora).toLocaleTimeString()}</small>
@@ -275,95 +237,49 @@ class ControlManager {
         }
     }
 
-    actualizarHistorial() {
-        const container = document.getElementById('historialMovimientos');
-        if (!container) return;
-        
-        if (this.estadoApp.movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-robot fa-2x mb-2"></i><br>No hay movimientos recientes</div>';
-            return;
-        }
-        
-        container.innerHTML = '';
-        this.estadoApp.movimientos.slice(0, 8).forEach(mov => {
-            const item = document.createElement('div');
-            item.className = 'movement-item';
-            item.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${mov.status_texto}</strong><br>
-                        <small class="text-muted">${mov.duracion_segundos}s</small>
-                    </div>
-                    <div class="text-end">
-                        <small class="text-muted">${new Date(mov.fecha_hora).toLocaleTimeString()}</small><br>
-                        <span class="badge" style="background: ${mov.tipo_ejecucion === 'manual' ? 'var(--accent-pink)' : 'var(--accent-purple)'}; font-size: 0.6rem;">
-                            ${mov.tipo_ejecucion}
-                        </span>
-                    </div>
-                </div>
-            `;
-            container.appendChild(item);
-        });
-    }
-
-    actualizarAlertas() {
-        const container = document.getElementById('alertasActivas');
-        if (!container) return;
-        
-        if (this.estadoApp.alertas.length > 0) {
-            const ultimaAlerta = this.estadoApp.alertas[0];
-            container.innerHTML = `
-                <span class="pulse" style="color: #ff9500;">
-                    <i class="fas fa-exclamation-triangle me-1"></i>
-                    ${ultimaAlerta.mensaje || 'Obstáculo detectado'}
-                </span>
-            `;
-        } else {
-            container.innerHTML = '<i class="fas fa-check-circle me-1"></i>Sin alertas';
-        }
-    }
-
     mostrarNotificacion(mensaje, tipo) {
+        const bgColor = tipo === 'success' ? '#00ff88' : (tipo === 'danger' ? '#ff4444' : '#ff9500');
         const toast = document.createElement('div');
-        const bgColor = tipo === 'success' ? '#00ff88' : 
-                        tipo === 'warning' ? '#ff9500' : 
-                        tipo === 'danger' ? '#ff4444' : '#8a2be2';
+        toast.className = 'alert position-fixed shadow-lg';
+        toast.style.cssText = `top: 20px; right: 20px; z-index: 9999; min-width: 300px; background: ${bgColor}20; border: 1px solid ${bgColor}; color: white; backdrop-filter: blur(5px);`;
         
-        toast.className = `alert alert-dismissible fade show position-fixed`;
-        toast.style.cssText = `
-            top: 20px; 
-            right: 20px; 
-            z-index: 1050; 
-            min-width: 300px;
-            background: ${bgColor}15;
-            backdrop-filter: blur(10px);
-            border: 1px solid ${bgColor}30;
-            color: white;
-        `;
         toast.innerHTML = `
             <div class="d-flex align-items-center">
-                <i class="fas fa-${tipo === 'success' ? 'check' : tipo === 'warning' ? 'exclamation-triangle' : 'info'}-circle me-2" 
-                   style="color: ${bgColor};"></i>
+                <i class="fas fa-${tipo === 'success' ? 'check' : 'info'}-circle me-2" style="color: ${bgColor};"></i>
                 <div>${mensaje}</div>
             </div>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
         `;
         
         document.body.appendChild(toast);
-        setTimeout(() => {
-            if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 4000);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
+    mostrarAlertaObstaculo(data) {
+        // Alerta visual GRANDE en el centro de la pantalla
+        const alerta = document.createElement('div');
+        alerta.style.cssText = `
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255, 0, 0, 0.95); color: white; padding: 30px;
+            border-radius: 15px; z-index: 10000; text-align: center;
+            box-shadow: 0 0 50px rgba(255,0,0,0.5); width: 80%; max-width: 400px;
+            animation: pulse 1s infinite;
+        `;
+        alerta.innerHTML = `
+            <i class="fas fa-exclamation-triangle fa-4x mb-3"></i>
+            <h2>¡OBSTÁCULO DETECTADO!</h2>
+            <p class="fs-5">${data.mensaje}</p>
+            <hr>
+            <small>Acción automática: ${data.accion}</small>
+        `;
+        
+        document.body.appendChild(alerta);
+        
+        // Sonido simple (opcional)
+        try { const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'); audio.play(); } catch(e){}
+
+        // Quitar automáticamente
+        setTimeout(() => alerta.remove(), 3500);
     }
 }
 
-// Inicialización cuando el DOM esté listo
-document.addEventListener('DOMContentLoaded', function() {
-    window.controlManager = new ControlManager();
-    
-    // Actualizar estado cada 3 segundos como respaldo
-    setInterval(() => {
-        controlManager.actualizarEstado();
-    }, 3000);
-    
-    console.log('🚀 IoT Car Control inicializado (Socket.IO + HTTP)');
-});
+window.controlManager = new ControlManager();
