@@ -8,18 +8,110 @@ class DemoManager {
         };
         this.backendUrl = 'http://54.147.92.50:5500';
         this.progresoElement = null;
+        this.demoEnEjecucion = null;
         
         document.addEventListener('DOMContentLoaded', () => {
             this.cargarDemos();
-            // 🔥 QUITAR: this.inicializarSocketDemo();
+            this.registrarManejadorWebSocket();
         });
     }
 
-    // 🔥 QUITAR: inicializarSocketDemo() - TODO EL MÉTODO
+    registrarManejadorWebSocket() {
+        // Registrar este manager para recibir mensajes WebSocket del controlManager
+        if (window.controlManager) {
+            // Sobrescribir el manejador de mensajes para incluir demos
+            const manejadorOriginal = window.controlManager.manejarMensajeWebSocket;
+            window.controlManager.manejarMensajeWebSocket = (mensaje) => {
+                // Manejar mensajes de demo
+                if (mensaje.tipo && mensaje.tipo.startsWith('demo_')) {
+                    this.manejarMensajeDemo(mensaje);
+                } else {
+                    // Llamar al manejador original para otros mensajes
+                    if (manejadorOriginal) {
+                        manejadorOriginal.call(window.controlManager, mensaje);
+                    }
+                }
+            };
+        }
+    }
 
-    // 🔥 QUITAR: mostrarProgresoEjecucion() - TODO EL MÉTODO
+    manejarMensajeDemo(mensaje) {
+        console.log('Mensaje demo recibido:', mensaje);
+        
+        switch(mensaje.tipo) {
+            case 'demo_progreso':
+                this.actualizarProgresoDemo(mensaje);
+                break;
+                
+            case 'demo_completada':
+                this.demoCompletada(mensaje);
+                break;
+        }
+    }
 
-    // 🔥 QUITAR: ocultarProgreso() - TODO EL MÉTODO
+    actualizarProgresoDemo(mensaje) {
+        if (!this.demoEnEjecucion) return;
+        
+        const { demo_id, movimiento_actual, total_movimientos, status_clave } = mensaje;
+        
+        // Actualizar el progreso en la interfaz
+        if (this.progresoElement) {
+            const porcentaje = (movimiento_actual / total_movimientos) * 100;
+            const progresoBar = this.progresoElement.querySelector('.progress-bar');
+            const contador = this.progresoElement.querySelector('.contador-movimientos');
+            const porcentajeText = this.progresoElement.querySelector('.porcentaje-progreso');
+            
+            if (progresoBar) {
+                progresoBar.style.width = `${porcentaje}%`;
+            }
+            if (contador) {
+                contador.textContent = `${movimiento_actual}/${total_movimientos}`;
+            }
+            if (porcentajeText) {
+                porcentajeText.textContent = `Progreso: ${Math.round(porcentaje)}%`;
+            }
+            
+            // Actualizar el movimiento actual
+            const movimientoActual = this.progresoElement.querySelector('.movimiento-actual');
+            if (movimientoActual) {
+                movimientoActual.textContent = `Movimiento: ${this.obtenerNombreMovimiento(status_clave)}`;
+            }
+        }
+        
+        console.log(`Progreso demo: ${movimiento_actual}/${total_movimientos} (${Math.round(porcentaje)}%)`);
+    }
+
+    demoCompletada(mensaje) {
+        if (this.progresoElement) {
+            const progresoBar = this.progresoElement.querySelector('.progress-bar');
+            const estado = this.progresoElement.querySelector('.estado-demo');
+            
+            if (progresoBar) {
+                progresoBar.style.width = '100%';
+                progresoBar.style.background = '#00ff88';
+            }
+            if (estado) {
+                estado.textContent = 'Demo completada';
+            }
+            
+            // Cambiar a éxito después de 2 segundos
+            setTimeout(() => {
+                this.progresoElement.style.background = 'rgba(0, 255, 136, 0.15)';
+                this.progresoElement.style.border = '1px solid #00ff88';
+            }, 2000);
+            
+            // Ocultar después de 5 segundos
+            setTimeout(() => {
+                this.ocultarProgreso();
+            }, 5000);
+        }
+        
+        this.demoEnEjecucion = null;
+        
+        if (window.controlManager) {
+            window.controlManager.mostrarNotificacion(`Demo "${mensaje.nombre_demo}" completada exitosamente`, 'success');
+        }
+    }
 
     async cargarDemos() {
         console.log('Cargando demos...');
@@ -55,6 +147,9 @@ class DemoManager {
         container.innerHTML = '';
         
         demos.forEach(demo => {
+            const movimientos = JSON.parse(demo.movimientos);
+            const duracionTotal = movimientos.reduce((total, mov) => total + (mov.duracion || 3), 0);
+            
             const demoCard = document.createElement('div');
             demoCard.className = 'demo-card mb-3';
             demoCard.innerHTML = `
@@ -65,7 +160,11 @@ class DemoManager {
                         <div class="mt-2">
                             <small class="text-muted">
                                 <i class="fas fa-list me-1"></i>
-                                ${JSON.parse(demo.movimientos).length} movimientos
+                                ${movimientos.length} movimientos
+                            </small>
+                            <small class="text-muted ms-2">
+                                <i class="fas fa-clock me-1"></i>
+                                ${duracionTotal}s total
                             </small>
                         </div>
                     </div>
@@ -232,7 +331,8 @@ class DemoManager {
     actualizarContadorMovimientos() {
         const contador = document.getElementById('contadorMovimientos');
         if (contador) {
-            contador.textContent = this.demoActual.movimientos.length + ' movimientos';
+            const duracionTotal = this.demoActual.movimientos.reduce((total, mov) => total + (mov.duracion || 3), 0);
+            contador.textContent = `${this.demoActual.movimientos.length} movimientos (${duracionTotal}s total)`;
         }
     }
 
@@ -299,7 +399,23 @@ class DemoManager {
         try {
             console.log('Ejecutando demo:', demoId, nombre);
             
-            const response = await fetch(this.backendUrl + '/api/ejecutar-demo/' + demoId, {
+            // Mostrar progreso inmediatamente
+            const response = await fetch(this.backendUrl + '/api/demos');
+            const dataDemos = await response.json();
+            
+            if (dataDemos.success && dataDemos.demos) {
+                const demo = dataDemos.demos.find(d => d.secuencia_id === demoId);
+                if (demo) {
+                    const movimientos = JSON.parse(demo.movimientos);
+                    const totalMovimientos = movimientos.length;
+                    
+                    this.mostrarProgresoWebSocket(nombre, totalMovimientos);
+                    this.demoEnEjecucion = { id: demoId, nombre: nombre };
+                }
+            }
+            
+            // Ejecutar la demo
+            const responseEjecutar = await fetch(this.backendUrl + '/api/ejecutar-demo/' + demoId, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
@@ -307,55 +423,85 @@ class DemoManager {
                 }
             });
             
-            const result = await response.json();
+            const result = await responseEjecutar.json();
             console.log('Respuesta ejecucion:', result);
             
             if (result.success) {
                 this.mostrarNotificacion('Demo "' + nombre + '" iniciada - ' + result.total_movimientos + ' movimientos (' + result.duracion_total + 's total)', 'info');
                 
-                // 🔥 NUEVO: Mostrar progreso simple (sin WebSockets)
-                this.mostrarProgresoSimple(nombre, result.total_movimientos);
+                // Si no hay WebSocket, usar progreso simple como fallback
+                if (!window.controlManager || !window.controlManager.estadoApp.websocketConectado) {
+                    this.mostrarProgresoSimple(nombre, result.total_movimientos);
+                }
             } else {
                 this.mostrarNotificacion('Error: ' + (result.error || 'Error desconocido'), 'danger');
+                this.ocultarProgreso();
             }
             
         } catch (error) {
             console.error('Error ejecutando demo:', error);
             this.mostrarNotificacion('Error de conexion con el servidor', 'danger');
+            this.ocultarProgreso();
         }
     }
 
-    // 🔥 NUEVO: Progreso simple sin WebSockets
-    mostrarProgresoSimple(nombre, totalMovimientos) {
+    mostrarProgresoWebSocket(nombre, totalMovimientos) {
         this.ocultarProgreso();
         
         this.progresoElement = document.createElement('div');
         this.progresoElement.className = 'alert alert-info position-fixed';
-        this.progresoElement.style.cssText = 'bottom: 20px; right: 20px; z-index: 1050; min-width: 350px; background: rgba(0, 255, 255, 0.15); backdrop-filter: blur(10px); border: 1px solid var(--accent-cyan); color: white;';
+        this.progresoElement.style.cssText = 'bottom: 20px; right: 20px; z-index: 1050; min-width: 400px; background: rgba(0, 255, 255, 0.15); backdrop-filter: blur(10px); border: 1px solid var(--accent-cyan); color: white;';
         
         this.progresoElement.innerHTML = `
             <div class="d-flex align-items-center">
                 <i class="fas fa-play-circle me-2" style="color: var(--accent-cyan);"></i>
                 <div class="flex-grow-1">
-                    <div class="d-flex justify-content-between">
-                        <small>Ejecutando demo...</small>
-                        <small>0/${totalMovimientos}</small>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="estado-demo">Ejecutando demo...</small>
+                        <small class="contador-movimientos">0/${totalMovimientos}</small>
                     </div>
                     <div class="fw-bold">${nombre}</div>
-                    <div class="progress mt-2" style="height: 6px; background: rgba(255,255,255,0.2);">
-                        <div class="progress-bar" style="background: var(--accent-cyan); width: 0%"></div>
+                    <div class="movimiento-actual small text-muted mb-1">Preparando...</div>
+                    <div class="progress mt-1" style="height: 6px; background: rgba(255,255,255,0.2);">
+                        <div class="progress-bar" style="background: var(--accent-cyan); width: 0%; transition: width 0.3s ease;"></div>
                     </div>
-                    <small class="text-muted">Progreso: 0%</small>
+                    <small class="porcentaje-progreso text-muted">Progreso: 0%</small>
                 </div>
+                <button type="button" class="btn-close btn-close-white ms-2" onclick="demoManager.ocultarProgreso()"></button>
             </div>
         `;
         
         document.body.appendChild(this.progresoElement);
+    }
+
+    mostrarProgresoSimple(nombre, totalMovimientos) {
+        this.mostrarProgresoWebSocket(nombre, totalMovimientos);
         
-        // Ocultar después de 10 segundos (estimado)
-        setTimeout(() => {
-            this.ocultarProgreso();
-        }, 10000);
+        // Simular progreso (fallback cuando no hay WebSocket)
+        let progreso = 0;
+        const intervalo = setInterval(() => {
+            progreso += 100 / (totalMovimientos * 2);
+            if (progreso >= 100) {
+                progreso = 100;
+                clearInterval(intervalo);
+                
+                setTimeout(() => {
+                    this.ocultarProgreso();
+                }, 2000);
+            }
+            
+            if (this.progresoElement) {
+                const progresoBar = this.progresoElement.querySelector('.progress-bar');
+                const porcentajeText = this.progresoElement.querySelector('.porcentaje-progreso');
+                
+                if (progresoBar) {
+                    progresoBar.style.width = `${progreso}%`;
+                }
+                if (porcentajeText) {
+                    porcentajeText.textContent = `Progreso: ${Math.round(progreso)}%`;
+                }
+            }
+        }, 500);
     }
 
     ocultarProgreso() {
@@ -363,6 +509,7 @@ class DemoManager {
             this.progresoElement.parentNode.removeChild(this.progresoElement);
             this.progresoElement = null;
         }
+        this.demoEnEjecucion = null;
     }
 
     async editarDemo(demoId) {

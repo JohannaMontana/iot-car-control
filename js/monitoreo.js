@@ -2,25 +2,103 @@ class MonitoreoManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500';
         this.estadoApp = {
-            conectado: true, // Siempre conectado con HTTP
+            conectado: true,
+            websocketConectado: false,
             metricas: {},
             alertas: [],
+            estadoArduino: null,
             actividadChart: null,
-            vistaGrafico: 'hora'
+            vistaGrafico: 'hora',
+            ultimaActualizacion: new Date()
         };
 
-        this.inicializarApp(); // Cambiar nombre
+        this.inicializarApp();
     }
 
     inicializarApp() {
-        // 🔥 QUITAR TODO EL CÓDIGO DE SOCKET
+        this.registrarManejadorWebSocket();
         this.actualizarEstadoConexion(true);
         this.actualizarDatos();
+        this.inicializarGrafico();
         
-        console.log('✅ MonitoreoManager inicializado (HTTP Only)');
+        console.log('MonitoreoManager inicializado (HTTP + WebSockets)');
     }
 
-    // 🔥 QUITAR: inicializarSocket() - TODO EL MÉTODO
+    registrarManejadorWebSocket() {
+        // Registrar este manager para recibir mensajes WebSocket del controlManager
+        if (window.controlManager) {
+            // Sobrescribir el manejador de mensajes para incluir monitoreo
+            const manejadorOriginal = window.controlManager.manejarMensajeWebSocket;
+            window.controlManager.manejarMensajeWebSocket = (mensaje) => {
+                // Manejar mensajes de monitoreo
+                if (mensaje.tipo && (mensaje.tipo === 'estado_arduino' || mensaje.tipo === 'obstaculo_detectado')) {
+                    this.manejarMensajeMonitoreo(mensaje);
+                } else {
+                    // Llamar al manejador original para otros mensajes
+                    if (manejadorOriginal) {
+                        manejadorOriginal.call(window.controlManager, mensaje);
+                    }
+                }
+            };
+        }
+    }
+
+    manejarMensajeMonitoreo(mensaje) {
+        console.log('Mensaje monitoreo recibido:', mensaje);
+        
+        switch(mensaje.tipo) {
+            case 'estado_arduino':
+                this.actualizarEstadoArduinoTiempoReal(mensaje.data);
+                break;
+                
+            case 'obstaculo_detectado':
+                this.agregarAlertaTiempoReal(mensaje);
+                break;
+                
+            case 'movimiento_ejecutado':
+                this.registrarMovimientoTiempoReal(mensaje);
+                break;
+        }
+        
+        this.estadoApp.ultimaActualizacion = new Date();
+        this.actualizarTimestamp();
+    }
+
+    actualizarEstadoArduinoTiempoReal(datosArduino) {
+        this.estadoApp.estadoArduino = datosArduino;
+        
+        // Actualizar métricas en tiempo real
+        this.actualizarMetricasTiempoReal(datosArduino);
+        
+        // Actualizar gráfico si está en vista en tiempo real
+        if (this.estadoApp.vistaGrafico === 'tiempo_real') {
+            this.actualizarGraficoTiempoReal(datosArduino);
+        }
+    }
+
+    agregarAlertaTiempoReal(alertaData) {
+        const alerta = {
+            tipo: 'obstaculo',
+            distancia: alertaData.distancia,
+            timestamp: new Date().toISOString(),
+            severidad: alertaData.distancia < 15 ? 'alta' : 'media',
+            mensaje: `Obstáculo detectado a ${alertaData.distancia}cm`
+        };
+        
+        this.agregarAlerta(alerta);
+        
+        // Actualizar contadores en tiempo real
+        this.actualizarMetricasRapidas();
+    }
+
+    registrarMovimientoTiempoReal(movimientoData) {
+        // Podemos usar esta información para actualizar estadísticas en tiempo real
+        console.log('Movimiento registrado en tiempo real:', movimientoData);
+        
+        // Actualizar timestamp de última actividad
+        this.estadoApp.ultimaActualizacion = new Date();
+        this.actualizarTimestamp();
+    }
 
     // ==================== FUNCIONES PRINCIPALES ====================
 
@@ -40,9 +118,11 @@ class MonitoreoManager {
             
             this.estadoApp.metricas = metricasData;
             this.estadoApp.alertas = alertasData.alertas || [];
+            this.estadoApp.ultimaActualizacion = new Date();
             
             this.actualizarInterfaz(estadoData, metricasData);
             this.actualizarGrafico();
+            this.actualizarTimestamp();
             
         } catch (error) {
             console.error('Error actualizando datos:', error);
@@ -60,20 +140,73 @@ class MonitoreoManager {
         if (metricEstado) metricEstado.textContent = 'Activo';
         if (metricMovimientos) metricMovimientos.textContent = estadoData.estadisticas?.total_movimientos || '0';
         if (metricAlertas) metricAlertas.textContent = this.estadoApp.alertas.length;
-        if (metricTiempo) metricTiempo.textContent = `${estadoData.estadisticas?.dias_activo || 0}h`;
+        if (metricTiempo) metricTiempo.textContent = `${estadoData.estadisticas?.dias_activo || 0}d`;
+        
+        // Actualizar información de WebSocket si está disponible
+        if (estadoData.websocket_clients !== undefined) {
+            this.actualizarInfoWebSocket(estadoData.websocket_clients);
+        }
         
         // Actualizar estadísticas de movimientos
         this.actualizarEstadisticasMovimientos(metricasData);
         
         // Actualizar información del sistema
-        const infoActualizacion = document.getElementById('infoActualizacion');
         const infoServidor = document.getElementById('infoServidor');
-        if (infoActualizacion) infoActualizacion.textContent = new Date().toLocaleTimeString();
-        if (infoServidor) infoServidor.textContent = 'Conectado';
+        if (infoServidor) {
+            const modo = window.controlManager && window.controlManager.estadoApp.websocketConectado ? 'WebSocket' : 'HTTP';
+            infoServidor.textContent = `Conectado (${modo})`;
+        }
         
         // Actualizar contador de alertas
         const contadorAlertas = document.getElementById('contadorAlertas');
         if (contadorAlertas) contadorAlertas.textContent = this.estadoApp.alertas.length;
+    }
+
+    actualizarMetricasTiempoReal(datosArduino) {
+        // Actualizar información en tiempo real del Arduino
+        const containerEstado = document.getElementById('estadoArduinoTiempoReal');
+        if (containerEstado && datosArduino) {
+            containerEstado.innerHTML = `
+                <div class="row small g-2">
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-ruler-vertical me-2 text-info"></i>
+                            <div>
+                                <div class="fw-bold">${datosArduino.distancia}cm</div>
+                                <small class="text-muted">Distancia</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-signal me-2 text-success"></i>
+                            <div>
+                                <div class="fw-bold">${datosArduino.rssi}dBm</div>
+                                <small class="text-muted">Señal WiFi</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-play-circle me-2 text-warning"></i>
+                            <div>
+                                <div class="fw-bold">${datosArduino.status_actual}</div>
+                                <small class="text-muted">Estado</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-bolt me-2 ${datosArduino.movimiento_activo ? 'text-success' : 'text-muted'}"></i>
+                            <div>
+                                <div class="fw-bold">${datosArduino.movimiento_activo ? 'Activo' : 'Inactivo'}</div>
+                                <small class="text-muted">Movimiento</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
     }
 
     actualizarEstadisticasMovimientos(metricasData) {
@@ -124,20 +257,22 @@ class MonitoreoManager {
         container.innerHTML = '';
         this.estadoApp.alertas.forEach((alerta, index) => {
             const alertaItem = document.createElement('div');
-            alertaItem.className = `alert-item ${alerta.severidad === 'alta' ? 'danger' : 'warning'}`;
+            alertaItem.className = `alert-item ${alerta.severidad === 'alta' ? 'danger' : 'warning'} mb-2 p-2 rounded`;
+            alertaItem.style.background = alerta.severidad === 'alta' ? 'rgba(255, 68, 68, 0.1)' : 'rgba(255, 149, 0, 0.1)';
+            alertaItem.style.border = alerta.severidad === 'alta' ? '1px solid rgba(255, 68, 68, 0.3)' : '1px solid rgba(255, 149, 0, 0.3)';
             
             const fecha = new Date(alerta.timestamp);
             alertaItem.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
-                    <div>
+                    <div class="flex-grow-1">
                         <strong>
                             <i class="fas fa-exclamation-triangle me-2"></i>
-                            Obstáculo ${alerta.tipo_obstaculo}
+                            ${alerta.tipo === 'obstaculo' ? 'Obstáculo Detectado' : 'Alerta del Sistema'}
                         </strong>
                         <br>
                         <small class="text-muted">${alerta.mensaje}</small>
                     </div>
-                    <div class="text-end">
+                    <div class="text-end ms-2">
                         <small class="text-muted">${fecha.toLocaleTimeString()}</small>
                         <br>
                         <span class="badge" style="background: ${alerta.severidad === 'alta' ? '#ff4444' : '#ff9500'};">
@@ -154,11 +289,32 @@ class MonitoreoManager {
         // Actualización rápida sin recargar todo
         const metricAlertas = document.getElementById('metricAlertas');
         const contadorAlertas = document.getElementById('contadorAlertas');
-        const infoActualizacion = document.getElementById('infoActualizacion');
         
         if (metricAlertas) metricAlertas.textContent = this.estadoApp.alertas.length;
         if (contadorAlertas) contadorAlertas.textContent = this.estadoApp.alertas.length;
-        if (infoActualizacion) infoActualizacion.textContent = new Date().toLocaleTimeString();
+        
+        this.actualizarTimestamp();
+    }
+
+    actualizarTimestamp() {
+        const infoActualizacion = document.getElementById('infoActualizacion');
+        if (infoActualizacion) {
+            infoActualizacion.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
+        }
+    }
+
+    actualizarInfoWebSocket(clientesConectados) {
+        const badge = document.getElementById('estadoWebSocketMonitoreo');
+        if (badge) {
+            const websocketActivo = window.controlManager && window.controlManager.estadoApp.websocketConectado;
+            if (websocketActivo) {
+                badge.innerHTML = `<i class="fas fa-plug me-1"></i>WebSocket (${clientesConectados})`;
+                badge.style.background = '#00ff88';
+            } else {
+                badge.innerHTML = '<i class="fas fa-unplug me-1"></i>HTTP';
+                badge.style.background = '#ff9500';
+            }
+        }
     }
 
     // ==================== GRÁFICOS ====================
@@ -187,6 +343,13 @@ class MonitoreoManager {
                 plugins: {
                     legend: {
                         labels: { color: '#ffffff' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff'
                     }
                 },
                 scales: {
@@ -199,6 +362,10 @@ class MonitoreoManager {
                         grid: { color: 'rgba(255,255,255,0.1)' },
                         ticks: { color: '#b0b0b0' }
                     }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'nearest'
                 }
             }
         });
@@ -215,6 +382,19 @@ class MonitoreoManager {
             this.estadoApp.actividadChart.data.labels = horas;
             this.estadoApp.actividadChart.data.datasets[0].data = movimientos;
             this.estadoApp.actividadChart.data.datasets[0].label = 'Movimientos por Hora';
+        } else if (this.estadoApp.vistaGrafico === 'tiempo_real') {
+            // Datos en tiempo real - simular con datos aleatorios
+            const ahora = new Date();
+            const labels = Array.from({length: 10}, (_, i) => {
+                const tiempo = new Date(ahora.getTime() - (9 - i) * 60000);
+                return tiempo.toLocaleTimeString('es-ES', { minute: '2-digit', second: '2-digit' });
+            });
+            
+            const datos = Array.from({length: 10}, () => Math.floor(Math.random() * 5));
+            
+            this.estadoApp.actividadChart.data.labels = labels;
+            this.estadoApp.actividadChart.data.datasets[0].data = datos;
+            this.estadoApp.actividadChart.data.datasets[0].label = 'Actividad en Tiempo Real';
         } else {
             // Datos por tipo de movimiento
             if (this.estadoApp.metricas.movimientos_por_tipo) {
@@ -230,9 +410,23 @@ class MonitoreoManager {
         this.estadoApp.actividadChart.update();
     }
 
+    actualizarGraficoTiempoReal(datosArduino) {
+        if (!this.estadoApp.actividadChart || this.estadoApp.vistaGrafico !== 'tiempo_real') return;
+        
+        // Aquí podrías actualizar el gráfico con datos en tiempo real del Arduino
+        // Por ejemplo, podrías mostrar la distancia del sensor en tiempo real
+        console.log('Actualizando gráfico tiempo real con:', datosArduino);
+    }
+
     cambiarVistaGrafico(vista) {
         this.estadoApp.vistaGrafico = vista;
         this.actualizarGrafico();
+        
+        // Mostrar u ocultar sección de tiempo real según la vista
+        const seccionTiempoReal = document.getElementById('seccionTiempoReal');
+        if (seccionTiempoReal) {
+            seccionTiempoReal.style.display = vista === 'tiempo_real' ? 'block' : 'none';
+        }
     }
 
     // ==================== FUNCIONES UTILITARIAS ====================
@@ -246,10 +440,11 @@ class MonitoreoManager {
         if (!estadoElement) return;
         
         if (conectado) {
+            const modo = window.controlManager && window.controlManager.estadoApp.websocketConectado ? 'WebSocket' : 'HTTP';
             indicator.className = 'status-indicator status-online pulse';
-            estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado al servidor';
+            estadoElement.innerHTML = `<span class="status-indicator status-online pulse"></span>Conectado al servidor (${modo})`;
             if (infoEstado) {
-                infoEstado.innerHTML = '<i class="fas fa-wifi me-1"></i>Online';
+                infoEstado.innerHTML = `<i class="fas fa-wifi me-1"></i>Online (${modo})`;
                 infoEstado.style.background = '#00ff88';
             }
         } else {
@@ -287,7 +482,7 @@ class MonitoreoManager {
                             <h6>Tasa de Resolución</h6>
                             <div class="list-group">
                                 ${data.obstaculos_por_tipo ? data.obstaculos_por_tipo.map(obs => `
-                                    <div class="list-group-item d-flex justify-content-between align-items-center" 
+                                    <div class="list-list-group-item d-flex justify-content-between align-items-center" 
                                          style="background: rgba(255,255,255,0.05); color: white; border: 1px solid rgba(255,255,255,0.1);">
                                         <span>${obs.status_texto}</span>
                                         <span class="badge" style="background: var(--accent-cyan);">
@@ -348,12 +543,11 @@ class MonitoreoManager {
 // Inicialización cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
     window.monitoreoManager = new MonitoreoManager();
-    monitoreoManager.inicializarGrafico();
     
-    // Actualizar datos cada 5 segundos
+    // Actualizar datos cada 5 segundos (solo para datos HTTP)
     setInterval(() => {
         monitoreoManager.actualizarDatos();
     }, 5000);
     
-    console.log('📊 Sistema de Monitoreo inicializado (HTTP Only)');
+    console.log('Sistema de Monitoreo inicializado (HTTP + WebSockets)');
 });

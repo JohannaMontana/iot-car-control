@@ -2,17 +2,23 @@ class ControlManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500';
         this.estadoApp = {
-            conectado: true, // Siempre conectado con HTTP
+            conectado: true,
+            websocketConectado: false,
             ultimoMovimiento: null,
             alertas: [],
-            movimientos: []
+            movimientos: [],
+            estadoArduino: null
         };
         
-        this.inicializarApp(); // Cambiar nombre
+        // WebSocket
+        this.websocket = null;
+        this.reconectarTimeout = null;
+        
+        this.inicializarApp();
     }
 
     inicializarApp() {
-        // 🔥 QUITAR TODO EL CÓDIGO DE SOCKET
+        this.inicializarWebSocket();
         this.actualizarEstadoConexion(true);
         this.actualizarEstado();
         
@@ -21,15 +27,128 @@ class ControlManager {
             window.demoManager.cargarDemos();
         }
         
-        console.log('✅ ControlManager inicializado (HTTP Only)');
+        console.log('ControlManager inicializado (HTTP + WebSockets)');
     }
 
-    // 🔥 QUITAR: inicializarSocket() - TODO EL MÉTODO
+    inicializarWebSocket() {
+        try {
+            const protocolo = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocolo}//54.147.92.50:5500/websocket`;
+            
+            this.websocket = new WebSocket(wsUrl);
+            
+            this.websocket.onopen = () => {
+                console.log('WebSocket conectado');
+                this.estadoApp.websocketConectado = true;
+                this.actualizarEstadoConexion(true);
+                
+                // Identificarse como navegador
+                this.identificarComoNavegador();
+                
+                // Configurar reconexión automática
+                this.iniciarReconexionAutomatica();
+            };
+            
+            this.websocket.onmessage = (event) => {
+                this.manejarMensajeWebSocket(JSON.parse(event.data));
+            };
+            
+            this.websocket.onclose = () => {
+                console.log('WebSocket desconectado');
+                this.estadoApp.websocketConectado = false;
+                this.actualizarEstadoConexion(false);
+                this.reconectar();
+            };
+            
+            this.websocket.onerror = (error) => {
+                console.error('Error WebSocket:', error);
+                this.estadoApp.websocketConectado = false;
+                this.actualizarEstadoConexion(false);
+            };
+            
+        } catch (error) {
+            console.error('Error inicializando WebSocket:', error);
+            this.estadoApp.websocketConectado = false;
+        }
+    }
+
+    identificarComoNavegador() {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(JSON.stringify({
+                tipo: 'identificacion',
+                cliente: 'navegador',
+                userAgent: navigator.userAgent
+            }));
+        }
+    }
+
+    manejarMensajeWebSocket(mensaje) {
+        console.log('Mensaje WebSocket recibido:', mensaje);
+        
+        switch(mensaje.tipo) {
+            case 'movimiento_ejecutado':
+                this.mostrarNotificacion(`Movimiento ${mensaje.status_clave} ejecutado`, 'success');
+                this.actualizarEstado(); // Actualizar estado desde servidor
+                break;
+                
+            case 'estado_arduino':
+                this.estadoApp.estadoArduino = mensaje.data;
+                this.actualizarEstadoArduino();
+                break;
+                
+            case 'obstaculo_detectado':
+                this.mostrarNotificacion(`Obstáculo detectado a ${mensaje.data.distancia}cm`, 'warning');
+                this.agregarAlerta(mensaje);
+                break;
+                
+            case 'movimiento_solicitado':
+                console.log('Movimiento solicitado via WebSocket:', mensaje.status_clave);
+                break;
+                
+            case 'movimiento_detenido':
+                this.mostrarNotificacion('Movimiento detenido', 'info');
+                break;
+                
+            case 'demo_progreso':
+                if (window.demoManager && window.demoManager.actualizarProgresoDemo) {
+                    window.demoManager.actualizarProgresoDemo(mensaje);
+                }
+                break;
+                
+            case 'demo_completada':
+                this.mostrarNotificacion(`Demo "${mensaje.nombre_demo}" completada`, 'success');
+                break;
+                
+            case 'identificacion_confirmada':
+                console.log('Identificación confirmada:', mensaje.mensaje);
+                break;
+        }
+    }
 
     async moverCarrito(statusClave) {
         const duracion = document.getElementById('duracionMovimiento').value;
         const nombreMovimiento = this.obtenerNombreMovimiento(statusClave);
         
+        // Intentar WebSocket primero
+        if (this.estadoApp.websocketConectado && this.websocket) {
+            try {
+                this.websocket.send(JSON.stringify({
+                    tipo: 'movimiento',
+                    status_clave: statusClave,
+                    duracion: parseInt(duracion),
+                    timestamp: new Date().toISOString()
+                }));
+                
+                this.mostrarNotificacion(`${nombreMovimiento} enviado via WebSocket`, 'success');
+                return;
+                
+            } catch (error) {
+                console.error('Error enviando via WebSocket, usando HTTP fallback:', error);
+                this.estadoApp.websocketConectado = false;
+            }
+        }
+        
+        // Fallback a HTTP
         try {
             const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST',
@@ -43,7 +162,6 @@ class ControlManager {
             const result = await response.json();
             if (result.success) {
                 this.mostrarNotificacion(`${nombreMovimiento} ejecutado`, 'success');
-                // Actualizar estado después del movimiento
                 setTimeout(() => this.actualizarEstado(), 1000);
             } else {
                 this.mostrarNotificacion('Error: ' + result.error, 'danger');
@@ -67,6 +185,25 @@ class ControlManager {
     }
 
     async detenerCarrito() {
+        // Intentar WebSocket primero
+        if (this.estadoApp.websocketConectado && this.websocket) {
+            try {
+                this.websocket.send(JSON.stringify({
+                    tipo: 'movimiento',
+                    status_clave: 3,
+                    timestamp: new Date().toISOString()
+                }));
+                
+                this.mostrarNotificacion('Comando detener enviado via WebSocket', 'info');
+                return;
+                
+            } catch (error) {
+                console.error('Error enviando detener via WebSocket:', error);
+                this.estadoApp.websocketConectado = false;
+            }
+        }
+        
+        // Fallback a HTTP
         await this.moverCarrito(3);
     }
 
@@ -126,12 +263,49 @@ class ControlManager {
                 this.actualizarHistorial();
             }
             
-            // Actualizar estado de conexión
-            this.actualizarEstadoConexion(true);
+            // Actualizar información de WebSocket si está disponible
+            if (data.websocket_clients !== undefined) {
+                this.actualizarInfoWebSocket(data.websocket_clients);
+            }
             
         } catch (error) {
             console.error('Error actualizando estado:', error);
-            this.actualizarEstadoConexion(false);
+        }
+    }
+
+    actualizarEstadoArduino() {
+        const container = document.getElementById('estadoArduino');
+        if (!container || !this.estadoApp.estadoArduino) return;
+        
+        const estado = this.estadoApp.estadoArduino;
+        container.innerHTML = `
+            <div class="row small">
+                <div class="col-6">
+                    <i class="fas fa-ruler-vertical me-1"></i>
+                    ${estado.distancia}cm
+                </div>
+                <div class="col-6">
+                    <i class="fas fa-broadcast-tower me-1"></i>
+                    ${estado.rssi}dBm
+                </div>
+                <div class="col-12 mt-1">
+                    <i class="fas fa-play-circle me-1"></i>
+                    Estado: ${estado.status_actual}
+                </div>
+            </div>
+        `;
+    }
+
+    actualizarInfoWebSocket(clientesConectados) {
+        const badge = document.getElementById('estadoWebSocket');
+        if (badge) {
+            if (this.estadoApp.websocketConectado) {
+                badge.innerHTML = `<i class="fas fa-plug me-1"></i>WebSocket (${clientesConectados})`;
+                badge.style.background = '#00ff88';
+            } else {
+                badge.innerHTML = '<i class="fas fa-unplug me-1"></i>HTTP';
+                badge.style.background = '#ff9500';
+            }
         }
     }
 
@@ -144,10 +318,12 @@ class ControlManager {
         if (!estadoElement) return;
         
         if (conectado) {
+            const modo = this.estadoApp.websocketConectado ? 'WebSocket' : 'HTTP';
             indicator.className = 'status-indicator status-online pulse';
-            estadoElement.innerHTML = '<span class="status-indicator status-online pulse"></span>Conectado al servidor';
+            estadoElement.innerHTML = `<span class="status-indicator status-online pulse"></span>Conectado al servidor (${modo})`;
+            
             if (conexionBadge) {
-                conexionBadge.innerHTML = '<i class="fas fa-wifi me-1"></i>Conectado';
+                conexionBadge.innerHTML = `<i class="fas fa-wifi me-1"></i>Conectado (${modo})`;
                 conexionBadge.style.background = '#00ff88';
             }
         } else {
@@ -158,6 +334,9 @@ class ControlManager {
                 conexionBadge.style.background = '#ff4444';
             }
         }
+        
+        // Actualizar también la info de WebSocket
+        this.actualizarInfoWebSocket(0);
     }
 
     actualizarUltimoMovimiento() {
@@ -210,6 +389,14 @@ class ControlManager {
         });
     }
 
+    agregarAlerta(alertaData) {
+        this.estadoApp.alertas.unshift(alertaData);
+        if (this.estadoApp.alertas.length > 10) {
+            this.estadoApp.alertas = this.estadoApp.alertas.slice(0, 10);
+        }
+        this.actualizarAlertas();
+    }
+
     actualizarAlertas() {
         const container = document.getElementById('alertasActivas');
         if (!container) return;
@@ -219,12 +406,30 @@ class ControlManager {
             container.innerHTML = `
                 <span class="pulse" style="color: #ff9500;">
                     <i class="fas fa-exclamation-triangle me-1"></i>
-                    Obstáculo detectado (Tipo ${ultimaAlerta.tipo_obstaculo})
+                    Obstáculo detectado (${ultimaAlerta.distancia}cm)
                 </span>
             `;
         } else {
             container.innerHTML = '<i class="fas fa-check-circle me-1"></i>Sin alertas';
         }
+    }
+
+    iniciarReconexionAutomatica() {
+        // Limpiar timeout anterior si existe
+        if (this.reconectarTimeout) {
+            clearTimeout(this.reconectarTimeout);
+        }
+    }
+
+    reconectar() {
+        if (this.reconectarTimeout) {
+            clearTimeout(this.reconectarTimeout);
+        }
+        
+        this.reconectarTimeout = setTimeout(() => {
+            console.log('Intentando reconectar WebSocket...');
+            this.inicializarWebSocket();
+        }, 3000);
     }
 
     mostrarNotificacion(mensaje, tipo) {
@@ -261,16 +466,41 @@ class ControlManager {
             }
         }, 4000);
     }
+
+    // Método para probar WebSocket manualmente
+    probarWebSocket() {
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(JSON.stringify({
+                tipo: 'ping',
+                mensaje: 'Test desde navegador'
+            }));
+            this.mostrarNotificacion('Ping enviado via WebSocket', 'info');
+        } else {
+            this.mostrarNotificacion('WebSocket no conectado', 'danger');
+        }
+    }
 }
 
 // Inicialización cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', function() {
     window.controlManager = new ControlManager();
     
-    // Actualizar estado cada 3 segundos
+    // Actualizar estado cada 3 segundos (solo para datos HTTP)
     setInterval(() => {
         controlManager.actualizarEstado();
     }, 3000);
     
-    console.log('🚀 IoT Car Control inicializado (HTTP Only)');
+    console.log('IoT Car Control inicializado (HTTP + WebSockets)');
+    
+    // Agregar botón de prueba WebSocket si no existe
+    if (!document.getElementById('probarWebSocket')) {
+        const botonPrueba = document.createElement('button');
+        botonPrueba.id = 'probarWebSocket';
+        botonPrueba.className = 'btn btn-sm btn-outline-info position-fixed';
+        botonPrueba.style.cssText = 'bottom: 10px; right: 10px; z-index: 1000;';
+        botonPrueba.innerHTML = '<i class="fas fa-bolt"></i>';
+        botonPrueba.title = 'Probar WebSocket';
+        botonPrueba.onclick = () => window.controlManager.probarWebSocket();
+        document.body.appendChild(botonPrueba);
+    }
 });
