@@ -99,12 +99,50 @@
                             <span class="input-group-text bg-secondary text-white">Duración (s)</span>
                             <input type="number" id="duracionMovimientoDemo" class="form-control bg-dark text-white" value="3" min="1">
                         </div>
+                        
+                        <!-- PRIMERA FILA: Movimientos básicos -->
+                        <div class="btn-group w-100 flex-wrap mb-2">
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(1)" title="Adelante">
+                                <i class="fas fa-arrow-up me-1"></i>Adelante
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(2)" title="Atrás">
+                                <i class="fas fa-arrow-down me-1"></i>Atrás
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="demoManager.agregarMovimiento(3)" title="Detener">
+                                <i class="fas fa-stop me-1"></i>Detener
+                            </button>
+                        </div>
+                        
+                        <!-- SEGUNDA FILA: Movimientos direccionales -->
+                        <div class="btn-group w-100 flex-wrap mb-2">
+                            <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(4)" title="Adelante-Derecha">
+                                <i class="fas fa-arrow-up-right me-1"></i>Adel-Der
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(5)" title="Adelante-Izquierda">
+                                <i class="fas fa-arrow-up-left me-1"></i>Adel-Izq
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(6)" title="Atrás-Derecha">
+                                <i class="fas fa-arrow-down-right me-1"></i>Atrás-Der
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(7)" title="Atrás-Izquierda">
+                                <i class="fas fa-arrow-down-left me-1"></i>Atrás-Izq
+                            </button>
+                        </div>
+                        
+                        <!-- TERCERA FILA: Giros y vueltas -->
                         <div class="btn-group w-100 flex-wrap">
-                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(1)">⬆️</button>
-                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(2)">⬇️</button>
-                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(8)">↪️</button>
-                            <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(9)">↩️</button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="demoManager.agregarMovimiento(3)">🛑</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="demoManager.agregarMovimiento(8)" title="Giro Derecha">
+                                <i class="fas fa-redo me-1"></i>Giro Der
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="demoManager.agregarMovimiento(9)" title="Giro Izquierda">
+                                <i class="fas fa-undo me-1"></i>Giro Izq
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="demoManager.agregarMovimiento(10)" title="Vuelta 360° Derecha">
+                                <i class="fas fa-sync me-1"></i>360° Der
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="demoManager.agregarMovimiento(11)" title="Vuelta 360° Izquierda">
+                                <i class="fas fa-sync fa-flip-horizontal me-1"></i>360° Izq
+                            </button>
                         </div>
                     </div>
                     <div class="d-flex justify-content-between align-items-center">

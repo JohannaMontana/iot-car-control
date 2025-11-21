@@ -1,17 +1,15 @@
 class MonitoreoManager {
     constructor() {
-        // Asegúrate de que esta IP sea la de tu servidor EC2
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         this.chart = null;
 
         this.estadoApp = {
             metricas: {},
-            vistaGrafico: 'hora', // 'hora' o 'tipo'
+            vistaGrafico: 'hora',
             ultimaActualizacion: new Date()
         };
 
-        // Inicializar cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
             this.init();
         });
@@ -21,11 +19,7 @@ class MonitoreoManager {
         console.log('🚀 Iniciando MonitoreoManager...');
         this.inicializarGrafico();
         this.conectarSocket();
-
-        // Carga inicial de datos
         this.actualizarDatos();
-
-        // Polling de respaldo cada 3 segundos
         setInterval(() => this.actualizarDatos(), 3000);
     }
 
@@ -44,57 +38,110 @@ class MonitoreoManager {
             if (el) el.innerHTML = '<span class="status-indicator status-offline"></span> Desconectado';
         });
 
-        // Si hay movimiento nuevo, actualizar tablas inmediatamente
         this.socket.on('movimiento_agregado', () => this.actualizarDatos());
-
-        // Si hay alerta, mostrarla y actualizar lista
         this.socket.on('alerta_obstaculo', (d) => {
             this.agregarAlertaVisual(d);
             this.actualizarDatos();
         });
     }
 
-    // ==================== CARGA DE DATOS ====================
+    // ==================== CARGA DE DATOS - USANDO TUS ENDPOINTS ====================
 
     async actualizarDatos() {
         try {
-            // 1. HISTORIAL (Tabla de 10)
+            // 1. HISTORIAL - usando /api/ultimos-10-movimientos
+            await this.cargarHistorialMovimientos();
+
+            // 2. ALERTAS - usando /api/alertas
+            await this.cargarAlertas();
+
+            // 3. ESTADO GENERAL - usando /api/estado-actual
+            await this.cargarEstadoActual();
+
+            // 4. MÉTRICAS - usando /api/metricas
+            await this.cargarMetricas();
+
+            // 5. RESUMEN MANIOBRAS - usando /api/resumen-maniobras
+            await this.cargarResumenManiobras();
+
+            this.estadoApp.ultimaActualizacion = new Date();
+            const infoUpd = document.getElementById('infoActualizacion');
+            if (infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
+
+        } catch (e) { 
+            console.error("Error polling monitoreo:", e); 
+        }
+    }
+
+    async cargarHistorialMovimientos() {
+        try {
             const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const dataHist = await resHist.json();
             if (dataHist.success && dataHist.movimientos) {
                 this.renderizarTablaHistorial(dataHist.movimientos);
             }
+        } catch (e) {
+            console.error("Error cargando historial:", e);
+        }
+    }
 
-            // 2. ALERTAS
+    async cargarAlertas() {
+        try {
             const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
             const dataAlert = await resAlert.json();
             if (dataAlert.alertas) {
                 this.renderizarListaAlertas(dataAlert.alertas);
             }
+        } catch (e) {
+            console.error("Error cargando alertas:", e);
+        }
+    }
 
-            // 3. ESTADO GENERAL (KPIs)
+    async cargarEstadoActual() {
+        try {
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             this.actualizarKPIs(dataEstado);
+            this.actualizarEstadoWS(dataEstado.estado_ws_arduino === 'Conectado');
+        } catch (e) {
+            console.error("Error cargando estado:", e);
+        }
+    }
 
-            // 4. MÉTRICAS (Gráfico)
+    async cargarMetricas() {
+        try {
             const resMet = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMet = await resMet.json();
             this.estadoApp.metricas = dataMet;
             this.actualizarGrafico();
-            this.actualizarResumen(dataMet);
-
-            // Actualizar timestamp footer
-            this.estadoApp.ultimaActualizacion = new Date();
-            const infoUpd = document.getElementById('infoActualizacion');
-            if (infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
-
-        } catch (e) { console.error("Error polling monitoreo:", e); }
+        } catch (e) {
+            console.error("Error cargando métricas:", e);
+        }
     }
 
-    // ==================== TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ====================
+    async cargarResumenManiobras() {
+        try {
+            const res = await fetch(`${this.backendUrl}/api/resumen-maniobras`);
+            const data = await res.json();
+            
+            const set = (id, v) => { 
+                const e = document.getElementById(id); 
+                if (e) e.textContent = v; 
+            };
+            
+            set('statAdelante', data.adelante || 0);
+            set('statAtras', data.atras || 0);
+            set('statGiros', data.giros || 0);
+            set('statVueltas', data.vueltas || 0);
+            
+        } catch (e) {
+            console.error("Error cargando resumen maniobras:", e);
+        }
+    }
 
-renderizarTablaHistorial(movimientos) {
+    // ==================== TABLA DE HISTORIAL ====================
+
+    renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
         if (!container) return;
 
@@ -103,7 +150,6 @@ renderizarTablaHistorial(movimientos) {
             return;
         }
 
-        // Construcción de la tabla HTML
         let html = `
             <div class="table-responsive">
                 <table class="table table-dark table-hover table-sm mb-0 align-middle" style="background: transparent;">
@@ -119,22 +165,19 @@ renderizarTablaHistorial(movimientos) {
         `;
 
         movimientos.forEach(mov => {
-            // Formatear fecha
             let hora = "--:--";
             if (mov.fecha_hora) {
                 const fechaObj = new Date(mov.fecha_hora);
                 hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
 
-            // Estilo de Badge (Etiqueta de color)
             let badgeColor = 'bg-secondary';
             let tipoTexto = mov.tipo_ejecucion || 'Manual';
             
-            if (tipoTexto === 'manual') badgeColor = 'bg-primary'; // Azul
-            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
-            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; } // Rojo
+            if (tipoTexto === 'manual') badgeColor = 'bg-primary';
+            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark';
+            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; }
 
-            // Icono según el texto del movimiento
             let icon = 'fa-circle';
             const txt = (mov.status_texto || '').toLowerCase();
             
@@ -167,7 +210,7 @@ renderizarTablaHistorial(movimientos) {
         container.innerHTML = html;
     }
 
-    // ==================== ALERTAS (TEXTOS CORRECTOS) ====================
+    // ==================== ALERTAS ====================
 
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
@@ -181,7 +224,6 @@ renderizarTablaHistorial(movimientos) {
             return;
         }
 
-        // MAPEO EXACTO SEGÚN TU BD
         const mapaBD = {
             1: "Adelante",
             2: "Adelante-Izquierda",
@@ -234,30 +276,37 @@ renderizarTablaHistorial(movimientos) {
     // ==================== KPIs y GRÁFICOS ====================
 
     actualizarKPIs(data) {
-        const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        const set = (id, v) => { 
+            const el = document.getElementById(id); 
+            if (el) el.textContent = v; 
+        };
+        
         set('metricMovimientos', data.estadisticas?.total_movimientos || 0);
-        set('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
+        
+        // QUITADO: Tiempo activo
+        // set('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
 
         const elSt = document.getElementById('metricEstado');
         if (elSt) {
             const on = data.estado_ws_arduino === 'Conectado';
-            elSt.innerHTML = on ? '<span class="text-success fw-bold">En Línea</span>' : '<span class="text-danger fw-bold">Offline</span>';
+            elSt.innerHTML = on ? 
+                '<span class="text-success fw-bold">En Línea</span>' : 
+                '<span class="text-danger fw-bold">Offline</span>';
+        }
+    }
+
+    actualizarEstadoWS(conectado) {
+        const el = document.getElementById('metricEstadoDetailed');
+        if (el) {
+            el.innerHTML = conectado ? 
+                '<span class="text-success fw-bold">Conectado</span>' : 
+                '<span class="text-danger fw-bold">Desconectado</span>';
         }
     }
 
     actualizarResumen(data) {
-        let c = { ad: 0, at: 0, gi: 0, vu: 0 };
-        if (data.movimientos_por_tipo) {
-            data.movimientos_por_tipo.forEach(m => {
-                const t = m.status_texto.toLowerCase();
-                if (t.includes('adelante')) c.ad += m.cantidad;
-                else if (t.includes('atras') || t.includes('atrás')) c.at += m.cantidad;
-                else if (t.includes('giro')) c.gi += m.cantidad;
-                else if (t.includes('vuelta')) c.vu += m.cantidad;
-            });
-        }
-        const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
-        set('statAdelante', c.ad); set('statAtras', c.at); set('statGiros', c.gi); set('statVueltas', c.vu);
+        // Esta función ya no es necesaria ya que usamos /api/resumen-maniobras
+        // Se mantiene por compatibilidad pero no hace nada
     }
 
     inicializarGrafico() {
@@ -265,14 +314,30 @@ renderizarTablaHistorial(movimientos) {
         if (!ctx) return;
         this.chart = new Chart(ctx, {
             type: 'line',
-            data: { labels: [], datasets: [{ label: 'Actividad', data: [], borderColor: '#ff2d95', tension: 0.4, fill: true, backgroundColor: 'rgba(255,45,149,0.1)' }] },
+            data: { 
+                labels: [], 
+                datasets: [{ 
+                    label: 'Actividad', 
+                    data: [], 
+                    borderColor: '#ff2d95', 
+                    tension: 0.4, 
+                    fill: true, 
+                    backgroundColor: 'rgba(255,45,149,0.1)' 
+                }] 
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } },
-                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } }
+                    x: { 
+                        grid: { color: 'rgba(255,255,255,0.1)' }, 
+                        ticks: { color: '#aaa' } 
+                    },
+                    y: { 
+                        grid: { color: 'rgba(255,255,255,0.1)' }, 
+                        ticks: { color: '#aaa' } 
+                    }
                 }
             }
         });
@@ -293,7 +358,10 @@ renderizarTablaHistorial(movimientos) {
         this.chart.update();
     }
 
-    cambiarVistaGrafico(v) { this.estadoApp.vistaGrafico = v; this.actualizarGrafico(); }
+    cambiarVistaGrafico(v) { 
+        this.estadoApp.vistaGrafico = v; 
+        this.actualizarGrafico(); 
+    }
 
     async verMetricasAvanzadas() {
         try {
@@ -309,7 +377,9 @@ renderizarTablaHistorial(movimientos) {
                         </li>`).join('') + '</ul>';
                 new bootstrap.Modal(document.getElementById('metricasModal')).show();
             }
-        } catch (e) { }
+        } catch (e) { 
+            console.error("Error cargando métricas avanzadas:", e);
+        }
     }
 }
 
