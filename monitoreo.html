@@ -8,6 +8,22 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="css/common.css" rel="stylesheet">
     <link href="css/monitoreo.css" rel="stylesheet">
+    <style>
+        /* Corrección forzada para etiquetas métricas */
+        .metric-label {
+            color: rgba(255, 255, 255, 0.7) !important;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white !important;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
+    </style>
 </head>
 <body>
     <div class="container-fluid py-4">
@@ -17,7 +33,7 @@
                 <h1 class="gradient-text fw-bold">
                     <i class="fas fa-chart-line me-3"></i>MONITOREO EN TIEMPO REAL
                 </h1>
-                <p class="text-muted">
+                <p class="text-white-50">
                     <span class="estado-conexion">
                         <span class="status-indicator status-offline"></span>
                         Conectando...
@@ -30,36 +46,40 @@
             </div>
         </div>
 
-        <!-- KPIs -->
+        <!-- KPIs (Corregidos colores) -->
         <div class="row mb-4">
             <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
-                    <h3 id="metricEstado" class="text-white mb-0">-</h3>
-                    <small class="text-muted">Estado Robot</small>
+                    <i class="fas fa-wifi fa-2x mb-2" style="color: var(--accent-cyan);"></i>
+                    <div class="metric-value" id="metricEstado">-</div>
+                    <div class="metric-label">Estado Robot</div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
-                    <h3 id="metricMovimientos" class="text-white mb-0">0</h3>
-                    <small class="text-muted">Total Movimientos</small>
+                    <i class="fas fa-running fa-2x mb-2" style="color: var(--accent-pink);"></i>
+                    <div class="metric-value" id="metricMovimientos">0</div>
+                    <div class="metric-label">Total Movimientos</div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
-                    <h3 id="metricAlertas" class="text-warning mb-0">0</h3>
-                    <small class="text-muted">Alertas Activas</small>
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2" style="color: #ff9500;"></i>
+                    <div class="metric-value" id="metricAlertas">0</div>
+                    <div class="metric-label">Alertas Activas</div>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
                 <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
-                    <h3 id="metricTiempo" class="text-info mb-0">0d</h3>
-                    <small class="text-muted">Tiempo Activo</small>
+                    <i class="fas fa-clock fa-2x mb-2" style="color: var(--accent-purple);"></i>
+                    <div class="metric-value" id="metricTiempo">0d</div>
+                    <div class="metric-label">Tiempo Activo</div>
                 </div>
             </div>
         </div>
 
         <div class="row">
-            <!-- Columna Izquierda: Gráficos y Tabla -->
+            <!-- Columna Izquierda -->
             <div class="col-lg-8">
                 
                 <!-- Gráfico -->
@@ -79,7 +99,7 @@
                     </div>
                 </div>
 
-                <!-- TABLA HISTORIAL (10) -->
+                <!-- TABLA HISTORIAL -->
                 <div class="glass-panel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h4 class="mb-0 text-white">
@@ -92,16 +112,16 @@
                     </div>
                     
                     <div id="historialMovimientos" class="table-container">
-                        <div class="text-center text-muted py-5">
+                        <div class="text-center text-white-50 py-5">
                             <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
                             <p>Cargando historial...</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stats Rápidos -->
+                <!-- Stats Rápidos (Corregido título negro) -->
                 <div class="glass-panel mt-4">
-                    <h5 class="mb-3 text-muted">Resumen de Maniobras</h5>
+                    <h5 class="mb-3 text-white-50 border-bottom border-secondary pb-2">Resumen de Maniobras</h5>
                     <div class="row text-center">
                         <div class="col-3"><h3 id="statAdelante" class="fw-bold text-white">0</h3><small class="text-white-50">Adelante</small></div>
                         <div class="col-3"><h3 id="statAtras" class="fw-bold text-white">0</h3><small class="text-white-50">Atrás</small></div>
@@ -111,20 +131,19 @@
                 </div>
             </div>
 
-            <!-- Columna Derecha: Alertas y Info -->
+            <!-- Columna Derecha -->
             <div class="col-lg-4">
-                
-                <!-- Log de Alertas -->
+                <!-- Alertas -->
                 <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0 text-white">
                             <i class="fas fa-bell me-2" style="color: #ff9500;"></i>
-                            Alertas Recientes
+                            Log de Alertas
                         </h5>
                         <span class="badge bg-danger" id="contadorAlertas">0</span>
                     </div>
                     <div id="alertasContainer" class="alert-history" style="max-height: 400px; overflow-y: auto;">
-                        <div class="text-center text-muted py-4">Sin alertas</div>
+                        <div class="text-center text-white-50 py-4">Sin alertas recientes</div>
                     </div>
                 </div>
 
@@ -136,14 +155,18 @@
                             <span>Servidor:</span>
                             <span class="text-success fw-bold" id="infoServidor">Conectado</span>
                         </li>
+                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                            <span>Robot WebSocket:</span>
+                            <span id="metricEstadoDetailed" class="fw-bold">-</span>
+                        </li>
                         <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-0">
                             <span>Última Sync:</span>
-                            <span id="infoActualizacion" class="text-muted">-</span>
+                            <span id="infoActualizacion" class="text-white-50">-</span>
                         </li>
                     </ul>
                     <div class="d-grid gap-2 mt-4">
                         <button class="btn btn-primary" onclick="monitoreoManager.verMetricasAvanzadas()" 
-                                style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none;">
+                                style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none; color: white;">
                             <i class="fas fa-database me-2"></i>Ver Histórico
                         </button>
                     </div>
