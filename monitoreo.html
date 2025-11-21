@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,14 +18,16 @@
             letter-spacing: 1px;
             margin-top: 5px;
         }
+
         .metric-value {
             font-size: 2.5rem;
             font-weight: bold;
             color: white !important;
-            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
         }
     </style>
 </head>
+
 <body>
     <div class="container-fluid py-4">
         <!-- Header -->
@@ -81,7 +84,7 @@
         <div class="row">
             <!-- Columna Izquierda -->
             <div class="col-lg-8">
-                
+
                 <!-- Gráfico -->
                 <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -90,8 +93,10 @@
                             Actividad
                         </h4>
                         <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.cambiarVistaGrafico('hora')">Por Hora</button>
-                            <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.cambiarVistaGrafico('tipo')">Por Tipo</button>
+                            <button class="btn btn-sm btn-outline-light"
+                                onclick="monitoreoManager.cambiarVistaGrafico('hora')">Por Hora</button>
+                            <button class="btn btn-sm btn-outline-light"
+                                onclick="monitoreoManager.cambiarVistaGrafico('tipo')">Por Tipo</button>
                         </div>
                     </div>
                     <div class="movement-chart" style="height: 250px;">
@@ -102,15 +107,13 @@
                 <!-- TABLA HISTORIAL -->
                 <div class="glass-panel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="mb-0 text-white">
-                            <i class="fas fa-history me-2" style="color: var(--accent-cyan);"></i>
-                            Últimos 10 Movimientos
-                        </h4>
-                        <button class="btn btn-sm btn-outline-light" onclick="monitoreoManager.actualizarDatos()">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
+                        <h5 class="mb-0 text-white"><i class="fas fa-history me-2"
+                                style="color: var(--accent-pink);"></i>Últimos 10 Movimientos
+                        </h5>
+                        <button class="btn btn-sm btn-link text-white" onclick="monitoreoManager.actualizarDatos()"><i
+                                class="fas fa-sync"></i></button>
                     </div>
-                    
+
                     <div id="historialMovimientos" class="table-container">
                         <div class="text-center text-white-50 py-5">
                             <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
@@ -123,10 +126,22 @@
                 <div class="glass-panel mt-4">
                     <h5 class="mb-3 text-white-50 border-bottom border-secondary pb-2">Resumen de Maniobras</h5>
                     <div class="row text-center">
-                        <div class="col-3"><h3 id="statAdelante" class="fw-bold text-white">0</h3><small class="text-white-50">Adelante</small></div>
-                        <div class="col-3"><h3 id="statAtras" class="fw-bold text-white">0</h3><small class="text-white-50">Atrás</small></div>
-                        <div class="col-3"><h3 id="statGiros" class="fw-bold text-white">0</h3><small class="text-white-50">Giros</small></div>
-                        <div class="col-3"><h3 id="statVueltas" class="fw-bold text-white">0</h3><small class="text-white-50">Vueltas</small></div>
+                        <div class="col-3">
+                            <h3 id="statAdelante" class="fw-bold text-white">0</h3><small
+                                class="text-white-50">Adelante</small>
+                        </div>
+                        <div class="col-3">
+                            <h3 id="statAtras" class="fw-bold text-white">0</h3><small
+                                class="text-white-50">Atrás</small>
+                        </div>
+                        <div class="col-3">
+                            <h3 id="statGiros" class="fw-bold text-white">0</h3><small
+                                class="text-white-50">Giros</small>
+                        </div>
+                        <div class="col-3">
+                            <h3 id="statVueltas" class="fw-bold text-white">0</h3><small
+                                class="text-white-50">Vueltas</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -149,13 +164,16 @@
 
                 <!-- Info Sistema -->
                 <div class="glass-panel">
-                    <h5 class="mb-3 text-white"><i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>Sistema</h5>
+                    <h5 class="mb-3 text-white"><i class="fas fa-microchip me-2"
+                            style="color: var(--accent-purple);"></i>Sistema</h5>
                     <ul class="list-group list-group-flush bg-transparent">
-                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                        <li
+                            class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
                             <span>Servidor:</span>
                             <span class="text-success fw-bold" id="infoServidor">Conectado</span>
                         </li>
-                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
+                        <li
+                            class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
                             <span>Robot WebSocket:</span>
                             <span id="metricEstadoDetailed" class="fw-bold">-</span>
                         </li>
@@ -165,8 +183,8 @@
                         </li>
                     </ul>
                     <div class="d-grid gap-2 mt-4">
-                        <button class="btn btn-primary" onclick="monitoreoManager.verMetricasAvanzadas()" 
-                                style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none; color: white;">
+                        <button class="btn btn-primary" onclick="monitoreoManager.verMetricasAvanzadas()"
+                            style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none; color: white;">
                             <i class="fas fa-database me-2"></i>Ver Histórico
                         </button>
                     </div>
@@ -193,4 +211,5 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="js/monitoreo.js"></script>
 </body>
+
 </html>
