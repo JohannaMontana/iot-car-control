@@ -1,6 +1,6 @@
 class MonitoreoManager {
     constructor() {
-        // Asegúrate de que esta IP sea la de tu servidor
+        // Asegúrate de que esta IP sea la de tu servidor EC2
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         this.chart = null;
@@ -32,7 +32,6 @@ class MonitoreoManager {
     // ==================== CONEXIÓN REAL-TIME ====================
 
     conectarSocket() {
-        // Conexión independiente para monitoreo
         this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
         
         this.socket.on('connect', () => {
@@ -97,7 +96,7 @@ class MonitoreoManager {
         }
     }
 
-    // ==================== TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ====================
+    // ==================== TABLA DE HISTORIAL (CORREGIDA: TEXTO BLANCO) ====================
 
     renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
@@ -108,11 +107,12 @@ class MonitoreoManager {
             return;
         }
 
+        // CORRECCIÓN AQUÍ: style="color: white;" forzado en la tabla
         let html = `
             <div class="table-responsive">
-            <table class="table table-dark table-hover table-sm mb-0 align-middle" style="background: transparent;">
+            <table class="table table-hover table-sm mb-0 align-middle" style="background: transparent; color: white;">
                 <thead>
-                    <tr class="text-secondary" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.3); color: #ccc;">
                         <th>Acción</th>
                         <th>Tipo</th>
                         <th>Duración</th>
@@ -126,12 +126,10 @@ class MonitoreoManager {
             // Formateo seguro de hora
             let hora = '-';
             if(m.fecha_hora) {
-                // Intentar parsear fecha ISO
                 const d = new Date(m.fecha_hora);
                 if(!isNaN(d.getTime())) {
                     hora = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 } else {
-                    // Fallback si viene como string simple
                     hora = String(m.fecha_hora).split(' ')[1] || m.fecha_hora;
                 }
             }
@@ -140,13 +138,13 @@ class MonitoreoManager {
             if(m.tipo_ejecucion === 'automatica') badge = 'bg-danger'; // Evasión
             if(m.tipo_ejecucion === 'demo') badge = 'bg-info text-dark';
 
-            // Fila de la tabla con clases text-white para asegurar visibilidad
+            // CORRECCIÓN: Asegurar clases text-white en celdas
             html += `
-                <tr>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
                     <td class="text-white fw-bold">${m.status_texto}</td>
                     <td><span class="badge ${badge} rounded-pill" style="font-size:0.7rem">${m.tipo_ejecucion}</span></td>
                     <td class="text-white-50 small">${m.duracion_segundos}s</td>
-                    <td class="text-end text-muted small font-monospace">${hora}</td>
+                    <td class="text-end text-white-50 small font-monospace">${hora}</td>
                 </tr>
             `;
         });
@@ -160,7 +158,6 @@ class MonitoreoManager {
         const container = document.getElementById('alertasContainer');
         const counters = [document.getElementById('contadorAlertas'), document.getElementById('metricAlertas')];
         
-        // Actualizar badges
         counters.forEach(c => { if(c) c.textContent = alertas ? alertas.length : 0; });
 
         if (!container) return;
@@ -182,8 +179,6 @@ class MonitoreoManager {
         alertas.forEach(a => {
             const fecha = a.fecha_hora ? new Date(a.fecha_hora).toLocaleTimeString() : '';
             const nombre = mapaBD[a.status_clave] || a.status_texto || "Desconocido";
-            
-            // ID 1 y 5 suelen ser choques frontales o traseros directos (graves)
             const grave = (a.status_clave === 1 || a.status_clave === 5);
 
             html += `
@@ -191,9 +186,9 @@ class MonitoreoManager {
                     <div>
                         <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
                         <strong>${nombre}</strong>
-                        <div class="text-white-50" style="font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
+                        <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
                     </div>
-                    <span class="text-white-50 ms-2">${fecha}</span>
+                    <span style="opacity: 0.8;">${fecha}</span>
                 </div>
             `;
         });
@@ -201,7 +196,6 @@ class MonitoreoManager {
     }
 
     agregarAlertaVisual(data) {
-        // Popup temporal en la lista de alertas (Feedback inmediato)
         const container = document.getElementById('alertasContainer');
         if(container) {
             if(container.innerText.includes("Sin alertas")) container.innerHTML = "";
