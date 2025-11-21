@@ -13,9 +13,7 @@
     <div class="container-fluid py-4">
         <div class="row mb-4">
             <div class="col text-center">
-                <h1 class="gradient-text fw-bold">
-                    <i class="fas fa-robot me-3"></i>IoT CAR CONTROL
-                </h1>
+                <h1 class="gradient-text fw-bold"><i class="fas fa-robot me-3"></i>IoT CAR CONTROL</h1>
                 <p class="text-muted">
                     <span class="estado-conexion">
                         <span class="status-indicator status-offline"></span>
@@ -30,11 +28,11 @@
         </div>
 
         <div class="row justify-content-center">
-            <div class="col-lg-7 col-xl-6">
+            <div class="col-lg-7">
                 <div class="glass-panel">
                     
                     <div class="mb-4 p-2 rounded border border-secondary bg-dark bg-opacity-25 text-center">
-                        <label class="text-white small mb-2"><i class="fas fa-tachometer-alt me-2"></i>POTENCIA DEL MOTOR</label>
+                        <label class="text-white small mb-2"><i class="fas fa-tachometer-alt me-2"></i>POTENCIA</label>
                         <div class="btn-group w-100" role="group">
                             <input type="radio" class="btn-check" name="velocidad" id="velBaja" value="130" autocomplete="off">
                             <label class="btn btn-outline-success btn-sm" for="velBaja">Lenta</label>
@@ -43,7 +41,7 @@
                             <label class="btn btn-outline-warning btn-sm" for="velMedia">Media</label>
 
                             <input type="radio" class="btn-check" name="velocidad" id="velAlta" value="255" autocomplete="off">
-                            <label class="btn btn-outline-danger btn-sm" for="velAlta">Turbo 🔥</label>
+                            <label class="btn btn-outline-danger btn-sm" for="velAlta">Turbo</label>
                         </div>
                     </div>
                     
@@ -53,7 +51,7 @@
                         <button class="control-btn btn-up-right" onclick="controlManager.moverCarrito(4)"><i class="fas fa-arrow-turn-up fa-flip-horizontal"></i></button>
 
                         <button class="control-btn btn-left" onclick="controlManager.moverCarrito(9)"><i class="fas fa-rotate-left"></i></button>
-                        <button class="control-btn btn-center" onclick="controlManager.detenerCarrito()" style="background: linear-gradient(145deg, #ff4444, #cc0000); transform: scale(1.1);"><i class="fas fa-stop"></i></button>
+                        <button class="control-btn btn-center" onclick="controlManager.detenerCarrito()" style="background: #ff4444;"><i class="fas fa-stop"></i></button>
                         <button class="control-btn btn-right" onclick="controlManager.moverCarrito(8)"><i class="fas fa-rotate-right"></i></button>
 
                         <button class="control-btn btn-down-left" onclick="controlManager.moverCarrito(7)"><i class="fas fa-arrow-turn-down"></i></button>
@@ -61,34 +59,36 @@
                         <button class="control-btn btn-down-right" onclick="controlManager.moverCarrito(6)"><i class="fas fa-arrow-turn-down fa-flip-horizontal"></i></button>
                     </div>
 
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <small class="text-muted mb-2 d-block text-center">Secuencias Automáticas:</small>
-                            <div class="d-flex gap-2">
-                                <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarCircuitoCuadrado()" 
-                                        style="background: rgba(138, 43, 226, 0.3); color: white; border: 1px solid var(--accent-purple);">
-                                    <i class="fas fa-square me-1"></i>Cuadrado
-                                </button>
-                                <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarZigZag()" 
-                                        style="background: rgba(0, 255, 255, 0.3); color: white; border: 1px solid var(--accent-cyan);">
-                                    <i class="fas fa-wave-square me-1"></i>Zig-Zag
-                                </button>
-                            </div>
+                    <div class="row mb-4 px-4 g-2">
+                        <div class="col-6">
+                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(11)">
+                                <i class="fas fa-sync fa-flip-horizontal me-1"></i> 360° Izq
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(10)">
+                                <i class="fas fa-sync me-1"></i> 360° Der
+                            </button>
                         </div>
                     </div>
 
-                    <div class="row mt-2 g-2">
-                        <div class="col-6">
-                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(11)"><i class="fas fa-sync fa-flip-horizontal me-1"></i>360° Izq</button>
-                        </div>
-                        <div class="col-6">
-                            <button class="btn btn-sm btn-outline-light w-100" onclick="controlManager.moverCarrito(10)"><i class="fas fa-sync me-1"></i>360° Der</button>
+                    <div class="border-top border-secondary pt-3 mt-2">
+                        <small class="text-muted mb-2 d-block text-center">Secuencias Automáticas:</small>
+                        <div class="d-flex gap-2 px-4">
+                            <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarCircuitoCuadrado()" 
+                                    style="background: rgba(138, 43, 226, 0.3); color: white; border: 1px solid var(--accent-purple);">
+                                <i class="fas fa-square me-1"></i> Cuadrado
+                            </button>
+                            <button class="btn btn-sm flex-fill" onclick="demoManager.ejecutarZigZag()" 
+                                    style="background: rgba(0, 255, 255, 0.3); color: white; border: 1px solid var(--accent-cyan);">
+                                <i class="fas fa-wave-square me-1"></i> Zig-Zag
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div class="glass-panel mb-4" id="editorDemo" style="display: none;">
-                    <h4 class="mb-3"><i class="fas fa-edit me-2" style="color: var(--accent-cyan);"></i>Editor DEMO</h4>
+                    <h4 class="mb-3"><i class="fas fa-edit me-2 text-info"></i>Editor DEMO</h4>
                     <div class="row mb-3">
                         <div class="col-6"><input type="text" id="demoNombre" class="form-control" placeholder="Nombre"></div>
                         <div class="col-6"><input type="text" id="demoDescripcion" class="form-control" placeholder="Descripción"></div>
@@ -128,8 +128,7 @@
                 </div>
             </div>
 
-            <div class="col-lg-5 col-xl-4">
-                
+            <div class="col-lg-5">
                 <div class="glass-panel mb-4">
                     <h5 class="mb-3"><i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>Estado</h5>
                     <ul class="list-group list-group-flush bg-transparent">
@@ -145,24 +144,21 @@
                 </div>
 
                 <div class="glass-panel">
-                    <h5 class="mb-3 text-white">
-                        <i class="fas fa-history me-2" style="color: var(--accent-pink);"></i>
-                        Historial (5)
-                    </h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0 text-white"><i class="fas fa-history me-2" style="color: var(--accent-pink);"></i>Historial (5)</h5>
+                        <button class="btn btn-sm btn-link text-white" onclick="controlManager.cargarHistorialRapido()"><i class="fas fa-sync"></i></button>
+                    </div>
+                    
                     <div id="historialMovimientos" class="movement-history" style="min-height: 100px;">
-                        <div class="text-center text-muted py-3">
-                            <i class="fas fa-spinner fa-spin"></i> Cargando...
-                        </div>
+                        <div class="text-center text-muted py-3">Cargando datos...</div>
                     </div>
                 </div>
-
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="js/socket-handler.js"></script>
     <script src="js/demos.js"></script>
     <script src="js/control.js"></script>
 </body>

@@ -1,6 +1,6 @@
 class DemoManager {
     constructor() {
-        // Asegúrate de que esta IP sea la correcta de tu EC2
+        // IP de tu servidor EC2
         this.backendUrl = 'http://54.147.92.50:5500'; 
         this.progresoElement = null;
         
@@ -11,17 +11,13 @@ class DemoManager {
             movimientos: []
         };
 
-        // Cargar lista de demos al iniciar
+        // Cargar lista de demos guardadas al iniciar
         document.addEventListener('DOMContentLoaded', () => {
             this.cargarDemos();
         });
     }
 
-    // ============================================================
-    // 1. SECUENCIAS AUTOMÁTICAS (Botones Rápidos)
-    // ============================================================
-
-    // Obtiene la velocidad seleccionada en el panel de control
+    //Helper para obtener la velocidad del panel de control
     getVelocidadActual() {
         if (window.controlManager && typeof window.controlManager.obtenerVelocidadSeleccionada === 'function') {
             return window.controlManager.obtenerVelocidadSeleccionada();
@@ -29,25 +25,29 @@ class DemoManager {
         return 180; // Default Media
     }
 
+    // ============================================================
+    // 1. SECUENCIAS AUTOMÁTICAS (Botones Rápidos)
+    // ============================================================
+
     async ejecutarCircuitoCuadrado() {
-        if(!confirm("¿Iniciar secuencia CUADRADO?\nAsegúrate de tener 1 metro libre alrededor.")) return;
+        if(!confirm("¿Iniciar secuencia CUADRADO?\nEl carrito avanzará y girará 4 veces.")) return;
 
         const velRecta = this.getVelocidadActual();
-        // Los giros de 90 grados requieren fuerza para no atascarse, usamos un valor fijo alto o la velocidad seleccionada si es mayor
+        // Los giros de 90 necesitan fuerza, usamos mínimo 200 o la velocidad seleccionada si es mayor
         const velGiro = Math.max(velRecta, 200); 
 
-        // Definición del Cuadrado: 4 lados + 4 giros
+        // Definición del Cuadrado (4 Lados + 4 Giros)
         const movimientos = [
-            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 1 (Adelante)" },
-            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90° Derecha" },
+            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 1" },
+            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90°" },
             
-            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 2 (Adelante)" },
-            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90° Derecha" },
+            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 2" },
+            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90°" },
             
-            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 3 (Adelante)" },
-            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90° Derecha" },
+            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 3" },
+            { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro 90°" },
             
-            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 4 (Adelante)" },
+            { status_clave: 1, duracion: 2, velocidad: velRecta, nombre: "Lado 4" },
             { status_clave: 8, duracion: 1, velocidad: velGiro,  nombre: "Giro Final" },
             
             { status_clave: 3, duracion: 1, velocidad: 0,        nombre: "Finalizar" }
@@ -79,7 +79,7 @@ class DemoManager {
      */
     async crearYEjecutarDemoTemporal(nombre, movimientos) {
         try {
-            this.mostrarNotificacion(`Generando secuencia: ${nombre}...`, 'info');
+            this.mostrarNotificacion(`Generando ${nombre}...`, 'info');
 
             // 1. Crear la demo en BD
             const responseCrear = await fetch(`${this.backendUrl}/api/crear-demo`, {
@@ -100,12 +100,12 @@ class DemoManager {
                 // Recargar lista para que aparezca en el historial
                 this.cargarDemos();
             } else {
-                this.mostrarNotificacion('Error creando secuencia: ' + dataCrear.error, 'danger');
+                this.mostrarNotificacion('Error: ' + dataCrear.error, 'danger');
             }
 
         } catch (error) {
             console.error(error);
-            this.mostrarNotificacion('Error de conexión al generar demo', 'danger');
+            this.mostrarNotificacion('Error de conexión', 'danger');
         }
     }
 
@@ -114,7 +114,7 @@ class DemoManager {
     // ============================================================
 
     async ejecutarDemo(id, nombre) {
-        // Feedback visual inmediato (Barra de progreso vacía)
+        // Mostrar barra vacía inmediatamente para feedback visual
         this.inicializarUIProgreso(nombre, "?");
         
         try {
@@ -143,14 +143,12 @@ class DemoManager {
     actualizarProgresoDemo(data) {
         const { movimiento_actual, total_movimientos, nombre_movimiento } = data;
         
-        // Si no existe la barra, la creamos
         if (!this.progresoElement) {
             this.inicializarUIProgreso("Demo en curso...", total_movimientos);
         }
 
         const porcentaje = (movimiento_actual / total_movimientos) * 100;
 
-        // Actualizar elementos del DOM
         const barra = this.progresoElement.querySelector('.progress-bar');
         const textoContador = this.progresoElement.querySelector('.contador-movimientos');
         const textoMovimiento = this.progresoElement.querySelector('.movimiento-actual');
@@ -176,16 +174,13 @@ class DemoManager {
                 estado.textContent = '¡Completado!';
                 estado.className = 'estado-demo text-success fw-bold';
             }
-
-            // Cerrar automáticamente a los 3 segundos
             setTimeout(() => this.ocultarProgreso(), 3000);
         }
         this.mostrarNotificacion(`✅ Secuencia "${data.nombre}" finalizada`, 'success');
     }
 
-    // Crea el elemento HTML de la barra de progreso flotante
     inicializarUIProgreso(nombre, total) {
-        this.ocultarProgreso(); // Limpiar previo
+        this.ocultarProgreso();
         
         this.progresoElement = document.createElement('div');
         this.progresoElement.className = 'alert position-fixed shadow-lg';
@@ -222,7 +217,7 @@ class DemoManager {
     }
 
     // ============================================================
-    // 3. GESTIÓN DE LISTA Y EDITOR (CRUD)
+    // 3. EDITOR Y LISTA DE DEMOS (CRUD)
     // ============================================================
 
     async cargarDemos() {
@@ -238,7 +233,7 @@ class DemoManager {
                 data.demos.forEach(demo => {
                     let movimientos = [];
                     try { movimientos = JSON.parse(demo.movimientos); } catch(e){}
-                    const duracion = movimientos.reduce((acc, curr) => acc + (curr.duracion || 0), 0);
+                    const duracionTotal = movimientos.reduce((acc, curr) => acc + (curr.duracion || 0), 0);
 
                     const item = document.createElement('div');
                     item.className = 'demo-card mb-2 p-3 border rounded bg-dark bg-opacity-50';
@@ -251,7 +246,7 @@ class DemoManager {
                                 <small class="text-muted" style="font-size: 0.8rem;">
                                     <i class="fas fa-layer-group me-1"></i>${movimientos.length} pasos 
                                     <span class="mx-1">•</span> 
-                                    <i class="fas fa-stopwatch me-1"></i>~${duracion}s
+                                    <i class="fas fa-stopwatch me-1"></i>~${duracionTotal}s
                                 </small>
                             </div>
                             <div class="btn-group">
@@ -278,7 +273,7 @@ class DemoManager {
         }
     }
 
-    // --- Editor de Demos ---
+    // --- Editor ---
 
     mostrarEditor() {
         document.getElementById('editorDemo').style.display = 'block';
@@ -296,7 +291,7 @@ class DemoManager {
     agregarMovimiento(statusClave) {
         const duracionInput = document.getElementById('duracionMovimientoDemo');
         const duracion = parseInt(duracionInput?.value || 3);
-        const velocidad = this.getVelocidadActual(); // Usar la velocidad seleccionada en el panel
+        const velocidad = this.getVelocidadActual(); // Usa la velocidad seleccionada
 
         const movimiento = {
             status_clave: statusClave,
@@ -318,16 +313,13 @@ class DemoManager {
         const contador = document.getElementById('contadorMovimientos');
         
         if(this.demoActual.movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-3">Agrega movimientos usando los botones...</div>';
+            container.innerHTML = '<div class="text-center text-muted py-3">Agrega movimientos...</div>';
             contador.textContent = '0 movimientos';
             return;
         }
 
         container.innerHTML = '';
-        let totalTiempo = 0;
-
         this.demoActual.movimientos.forEach((mov, idx) => {
-            totalTiempo += mov.duracion;
             const div = document.createElement('div');
             div.className = 'd-flex justify-content-between align-items-center border-bottom border-secondary py-1';
             div.innerHTML = `
@@ -338,13 +330,12 @@ class DemoManager {
             `;
             container.appendChild(div);
         });
-        contador.textContent = `${this.demoActual.movimientos.length} movs (~${totalTiempo}s)`;
+        contador.textContent = `${this.demoActual.movimientos.length} movs`;
     }
 
     async guardarDemo() {
         const nombre = document.getElementById('demoNombre').value.trim();
-        if (!nombre) return this.mostrarNotificacion('Nombre requerido', 'warning');
-        if (this.demoActual.movimientos.length === 0) return this.mostrarNotificacion('Agrega movimientos', 'warning');
+        if (!nombre || this.demoActual.movimientos.length === 0) return this.mostrarNotificacion('Datos incompletos', 'warning');
 
         const url = this.demoActual.id 
             ? `${this.backendUrl}/api/demo/${this.demoActual.id}` 
@@ -361,7 +352,7 @@ class DemoManager {
                     movimientos: this.demoActual.movimientos
                 })
             });
-            this.mostrarNotificacion('Demo guardada exitosamente', 'success');
+            this.mostrarNotificacion('Demo guardada', 'success');
             this.ocultarEditor();
             this.cargarDemos();
         } catch (e) {
@@ -392,12 +383,10 @@ class DemoManager {
     }
 
     async eliminarDemo(id) {
-        if(!confirm("¿Eliminar esta secuencia?")) return;
-        try {
-            await fetch(`${this.backendUrl}/api/demo/${id}`, { method: 'DELETE' });
-            this.cargarDemos();
-            this.mostrarNotificacion('Secuencia eliminada', 'info');
-        } catch(e) { console.error(e); }
+        if(!confirm("¿Eliminar?")) return;
+        await fetch(`${this.backendUrl}/api/demo/${id}`, { method: 'DELETE' });
+        this.cargarDemos();
+        this.mostrarNotificacion('Eliminada', 'info');
     }
 
     // ==================== UTILIDADES ====================
@@ -417,5 +406,4 @@ class DemoManager {
     }
 }
 
-// Inicializar
 window.demoManager = new DemoManager();
