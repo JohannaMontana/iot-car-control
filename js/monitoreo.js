@@ -1,6 +1,6 @@
 class MonitoreoManager {
     constructor() {
-        // Asegúrate de que esta IP sea la correcta de tu EC2
+        // IP de tu servidor EC2 (backend)
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         
@@ -12,7 +12,7 @@ class MonitoreoManager {
             ultimaActualizacion: new Date()
         };
 
-        // Inicializar cuando el DOM esté listo
+        // Iniciar cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
             this.inicializarApp();
         });
@@ -30,14 +30,13 @@ class MonitoreoManager {
         // 3. Cargar datos iniciales de la BD inmediatamente
         this.actualizarDatos();
         
-        // 4. Polling de respaldo cada 3 segundos (mantiene sincronía si el socket falla)
+        // 4. Polling de respaldo cada 3 segundos
         setInterval(() => this.actualizarDatos(), 3000);
     }
 
     // ==================== CONEXIÓN SOCKET.IO ====================
 
     conectarSocket() {
-        // Intentamos reutilizar el socket si control.js ya lo cargó, si no, creamos uno
         if (window.io) {
             this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
 
@@ -51,20 +50,15 @@ class MonitoreoManager {
                 this.actualizarEstadoConexion(false);
             });
 
-            // ESCUCHADORES DE EVENTOS DEL BACKEND:
-
-            // A. Si ocurre un movimiento nuevo, recargamos la tabla al instante
+            // A. Si ocurre un movimiento nuevo, recargamos la tabla
             this.socket.on('movimiento_agregado', () => {
-                console.log('⚡ Nuevo movimiento detectado -> Actualizando tabla');
                 this.actualizarDatos();
             });
 
-            // B. Si el Arduino detecta obstáculo, mostrar alerta
+            // B. Si el Arduino detecta obstáculo, recargamos y mostramos alerta visual
             this.socket.on('alerta_obstaculo', (data) => {
-                console.warn('🚨 Alerta recibida:', data);
                 this.agregarAlertaVisual(data);
-                // Recargamos para que aparezca en el historial de alertas
-                this.actualizarDatos();
+                this.actualizarDatos(); 
             });
         }
     }
@@ -73,28 +67,28 @@ class MonitoreoManager {
 
     async actualizarDatos() {
         try {
-            // 1. OBTENER LOS 10 ÚLTIMOS MOVIMIENTOS (Tabla Principal)
+            // 1. HISTORIAL (Tabla Principal)
             const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const dataHist = await resHist.json();
             
-            // 2. Obtener Métricas para Gráficas
+            // 2. Métricas para Gráficas
             const resMetricas = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMetricas = await resMetricas.json();
 
-            // 3. Obtener Estado General (Contadores Superiores)
+            // 3. Estado General (KPIs)
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             
-            // 4. Obtener Alertas Históricas
+            // 4. Alertas
             const resAlertas = await fetch(`${this.backendUrl}/api/alertas`);
             const dataAlertas = await resAlertas.json();
 
-            // Guardar en memoria local
+            // Guardar estado local
             this.estadoApp.metricas = dataMetricas;
             this.estadoApp.ultimaActualizacion = new Date();
 
             // --- RENDERIZADO DE UI ---
-            if (dataHist.success) {
+            if (dataHist.success && dataHist.movimientos) {
                 this.renderizarTablaHistorial(dataHist.movimientos);
             }
             
@@ -122,7 +116,6 @@ class MonitoreoManager {
             return;
         }
 
-        // Construcción de la tabla HTML
         let html = `
             <div class="table-responsive">
                 <table class="table table-dark table-hover table-sm mb-0 align-middle" style="background: transparent;">
@@ -145,15 +138,15 @@ class MonitoreoManager {
                 hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
 
-            // Estilo de Badge (Etiqueta de color)
+            // Estilo de Badge
             let badgeColor = 'bg-secondary';
             let tipoTexto = mov.tipo_ejecucion || 'Manual';
             
-            if (tipoTexto === 'manual') badgeColor = 'bg-primary'; // Azul
-            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
-            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; } // Rojo
+            if (tipoTexto === 'manual') badgeColor = 'bg-primary'; 
+            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark'; 
+            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; } 
 
-            // Icono según el texto del movimiento
+            // Icono
             let icon = 'fa-circle';
             const txt = (mov.status_texto || '').toLowerCase();
             
@@ -186,20 +179,19 @@ class MonitoreoManager {
         container.innerHTML = html;
     }
 
-    // ==================== ACTUALIZACIÓN DE INTERFAZ (KPIs) ====================
+    // ==================== KPIs y ALERTAS ====================
 
     actualizarKPIs(data) {
-        // Función helper para escribir en el DOM
         const setText = (id, val) => { 
             const el = document.getElementById(id); 
             if(el) el.textContent = val; 
         };
         
-        // Tarjetas Superiores
         setText('metricMovimientos', data.estadisticas?.total_movimientos || 0);
         setText('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
-        
-        // Estado conexión Robot (Viene del backend websocket status)
+        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
+
+        // Estado conexión Robot
         const elEstado = document.getElementById('metricEstado');
         if (elEstado) {
             const conectado = data.estado_ws_arduino === 'Conectado';
@@ -207,9 +199,7 @@ class MonitoreoManager {
                 ? '<span class="text-success fw-bold"><i class="fas fa-wifi me-2"></i>En Línea</span>' 
                 : '<span class="text-danger fw-bold"><i class="fas fa-wifi-slash me-2"></i>Offline</span>';
         }
-
-        // Footer Info
-        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
+        
         const infoServidor = document.getElementById('infoServidor');
         if(infoServidor) {
             infoServidor.textContent = 'Conectado';
@@ -218,7 +208,6 @@ class MonitoreoManager {
     }
 
     actualizarResumenManiobras(data) {
-        // Contadores de la parte inferior
         let c = { adelante: 0, atras: 0, giros: 0, vueltas: 0 };
         
         if (data.movimientos_por_tipo) {
@@ -247,8 +236,6 @@ class MonitoreoManager {
         }
     }
 
-    // ==================== ALERTAS ====================
-
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
         const badge = document.getElementById('metricAlertas');
@@ -266,10 +253,9 @@ class MonitoreoManager {
         let html = '';
         alertas.forEach(alerta => {
             const fecha = new Date(alerta.fecha_hora || alerta.timestamp).toLocaleTimeString();
-            // Detectar si es grave (status 1 = obstaculo frontal)
             const grave = alerta.status_clave === 1; 
             
-            // Mapa de nombres de obstáculos (Coincide con tu BD)
+            // Mapa de Nombres (Coincide con tu BD)
             const nombres = {
                 1: "Obstáculo Frontal",
                 2: "Obstáculo Izquierda",
@@ -293,10 +279,8 @@ class MonitoreoManager {
     }
 
     agregarAlertaVisual(data) {
-        // Inyección visual rápida para feedback inmediato
         const container = document.getElementById('alertasContainer');
         if (container) {
-            // Si estaba vacío, limpiamos el mensaje de "sin alertas"
             if(container.innerText.includes("Sin alertas")) container.innerHTML = "";
             
             const div = document.createElement('div');
@@ -312,7 +296,7 @@ class MonitoreoManager {
         }
     }
 
-    // ==================== GRÁFICOS (Chart.js) ====================
+    // ==================== GRÁFICOS ====================
 
     inicializarGrafico() {
         const ctx = document.getElementById('actividadChart');
@@ -325,7 +309,7 @@ class MonitoreoManager {
                 datasets: [{
                     label: 'Movimientos',
                     data: [],
-                    borderColor: '#ff2d95', // Tu color accent-pink
+                    borderColor: '#ff2d95',
                     backgroundColor: 'rgba(255, 45, 149, 0.1)',
                     borderWidth: 2,
                     pointBackgroundColor: '#fff',
@@ -385,7 +369,6 @@ class MonitoreoManager {
         this.actualizarGrafico();
     }
 
-    // Modal de Métricas Avanzadas (Conexión BD extra)
     async verMetricasAvanzadas() {
         try {
             const res = await fetch(`${this.backendUrl}/api/estadisticas-obstaculos`);
