@@ -90,3 +90,20 @@ body {
     text-transform: uppercase;
     letter-spacing: 1px;
 }
+
+/* SOLUCIÓN DEFINITIVA PARA TABLA BLANCA */
+#historialMovimientos table,
+#historialMovimientos table th,
+#historialMovimientos table td,
+#historialMovimientos table tr {
+    color: white !important;
+    border-color: rgba(255,255,255,0.2) !important;
+}
+
+#historialMovimientos .table-hover tbody tr:hover {
+    background-color: rgba(255,255,255,0.1) !important;
+}
+
+#historialMovimientos .text-white-50 {
+    color: rgba(255,255,255,0.8) !important;
+}
