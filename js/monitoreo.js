@@ -1,6 +1,6 @@
 class MonitoreoManager {
     constructor() {
-        // Asegúrate que sea la IP de tu EC2
+        // Asegúrate de que esta IP sea la correcta de tu EC2
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         
@@ -12,112 +12,126 @@ class MonitoreoManager {
             ultimaActualizacion: new Date()
         };
 
-        // Iniciar cuando el DOM esté listo
+        // Inicializar cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
             this.inicializarApp();
         });
     }
 
     inicializarApp() {
+        console.log('🚀 Iniciando Sistema de Monitoreo...');
+        
         // 1. Iniciar Gráfico (Vacío al principio)
         this.inicializarGrafico();
         
-        // 2. Conectar Socket.IO para tiempo real
-        this.inicializarSocketIO();
+        // 2. Conectar Socket.IO para actualizaciones en tiempo real
+        this.conectarSocket();
         
-        // 3. Cargar datos iniciales de la BD
+        // 3. Cargar datos iniciales de la BD inmediatamente
         this.actualizarDatos();
         
-        // 4. Polling de respaldo cada 3 segundos (para mantener sync)
+        // 4. Polling de respaldo cada 3 segundos (mantiene sincronía si el socket falla)
         setInterval(() => this.actualizarDatos(), 3000);
-
-        console.log('✅ MonitoreoManager inicializado');
     }
 
-    // ==================== CONEXIÓN REAL-TIME ====================
+    // ==================== CONEXIÓN SOCKET.IO ====================
 
-    inicializarSocketIO() {
-        console.log('🔌 Conectando Socket.IO en Monitoreo...');
-        this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
+    conectarSocket() {
+        // Intentamos reutilizar el socket si control.js ya lo cargó, si no, creamos uno
+        if (window.io) {
+            this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
 
-        this.socket.on('connect', () => {
-            document.querySelector('.estado-conexion').innerHTML = 
-                '<span class="status-indicator status-online pulse"></span> Conectado';
-        });
+            this.socket.on('connect', () => {
+                console.log('🔌 Monitoreo conectado al Socket');
+                this.actualizarEstadoConexion(true);
+            });
 
-        this.socket.on('disconnect', () => {
-            document.querySelector('.estado-conexion').innerHTML = 
-                '<span class="status-indicator status-offline"></span> Desconectado';
-        });
+            this.socket.on('disconnect', () => {
+                console.log('❌ Monitoreo desconectado');
+                this.actualizarEstadoConexion(false);
+            });
 
-        // Si ocurre un movimiento, actualizamos la tabla inmediatamente
-        this.socket.on('movimiento_agregado', () => {
-            this.actualizarDatos();
-        });
+            // ESCUCHADORES DE EVENTOS DEL BACKEND:
 
-        // Si ocurre una alerta de obstáculo, la mostramos
-        this.socket.on('alerta_obstaculo', (data) => {
-            this.agregarAlertaVisual(data);
-            this.actualizarDatos(); // Recargar lista de alertas
-        });
+            // A. Si ocurre un movimiento nuevo, recargamos la tabla al instante
+            this.socket.on('movimiento_agregado', () => {
+                console.log('⚡ Nuevo movimiento detectado -> Actualizando tabla');
+                this.actualizarDatos();
+            });
+
+            // B. Si el Arduino detecta obstáculo, mostrar alerta
+            this.socket.on('alerta_obstaculo', (data) => {
+                console.warn('🚨 Alerta recibida:', data);
+                this.agregarAlertaVisual(data);
+                // Recargamos para que aparezca en el historial de alertas
+                this.actualizarDatos();
+            });
+        }
     }
 
     // ==================== CARGA DE DATOS (API REST) ====================
 
     async actualizarDatos() {
         try {
-            // A. Obtener Historial (La tabla de 10 movimientos)
+            // 1. OBTENER LOS 10 ÚLTIMOS MOVIMIENTOS (Tabla Principal)
             const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const dataHist = await resHist.json();
             
-            // B. Obtener Métricas Generales
+            // 2. Obtener Métricas para Gráficas
             const resMetricas = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMetricas = await resMetricas.json();
 
-            // C. Obtener Estado General (KPIs)
+            // 3. Obtener Estado General (Contadores Superiores)
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             
-            // D. Obtener Alertas
+            // 4. Obtener Alertas Históricas
             const resAlertas = await fetch(`${this.backendUrl}/api/alertas`);
             const dataAlertas = await resAlertas.json();
 
-            // Actualizar Estado Local
+            // Guardar en memoria local
             this.estadoApp.metricas = dataMetricas;
             this.estadoApp.ultimaActualizacion = new Date();
 
-            // Renderizar UI
-            if (dataHist.success) this.renderizarTablaHistorial(dataHist.movimientos);
+            // --- RENDERIZADO DE UI ---
+            if (dataHist.success) {
+                this.renderizarTablaHistorial(dataHist.movimientos);
+            }
+            
             this.actualizarKPIs(dataEstado);
-            this.actualizarGrafico();
-            if (dataAlertas.alertas) this.renderizarListaAlertas(dataAlertas.alertas);
             this.actualizarResumenManiobras(dataMetricas);
+            this.actualizarGrafico();
+            
+            if (dataAlertas.alertas) {
+                this.renderizarListaAlertas(dataAlertas.alertas);
+            }
 
         } catch (error) {
             console.error("Error actualizando monitoreo:", error);
         }
     }
 
-    // ==================== RENDERIZADO DE TABLA (Tu requerimiento principal) ====================
+    // ==================== RENDERIZADO DE TABLA (10 Movimientos) ====================
 
     renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
         if (!container) return;
 
         if (!movimientos || movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-5">Sin movimientos registrados</div>';
+            container.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-box-open fa-2x mb-2"></i><br>Sin movimientos registrados</div>';
             return;
         }
 
+        // Construcción de la tabla HTML
         let html = `
             <div class="table-responsive">
-                <table class="table table-dark table-hover table-sm mb-0" style="background: transparent;">
+                <table class="table table-dark table-hover table-sm mb-0 align-middle" style="background: transparent;">
                     <thead>
-                        <tr class="text-muted" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                            <th><i class="fas fa-bolt me-1"></i>Acción</th>
-                            <th>Tipo</th>
-                            <th>Duración</th>
-                            <th class="text-end">Hora</th>
+                        <tr class="text-secondary" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <th scope="col"><i class="fas fa-bolt me-2"></i>Acción</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Duración</th>
+                            <th scope="col" class="text-end">Hora</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -125,34 +139,45 @@ class MonitoreoManager {
 
         movimientos.forEach(mov => {
             // Formatear fecha
-            const fechaObj = new Date(mov.fecha_hora);
-            const hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            let hora = "--:--";
+            if (mov.fecha_hora) {
+                const fechaObj = new Date(mov.fecha_hora);
+                hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
 
-            // Estilo según tipo
+            // Estilo de Badge (Etiqueta de color)
             let badgeColor = 'bg-secondary';
-            if (mov.tipo_ejecucion === 'manual') badgeColor = 'bg-primary'; // Azul
-            if (mov.tipo_ejecucion === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
-            if (mov.tipo_ejecucion === 'automatica') badgeColor = 'bg-danger'; // Rojo (Evasión)
+            let tipoTexto = mov.tipo_ejecucion || 'Manual';
+            
+            if (tipoTexto === 'manual') badgeColor = 'bg-primary'; // Azul
+            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
+            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; } // Rojo
 
-            // Icono según texto
-            let icon = 'fa-arrow-right';
+            // Icono según el texto del movimiento
+            let icon = 'fa-circle';
             const txt = (mov.status_texto || '').toLowerCase();
+            
             if (txt.includes('adelante')) icon = 'fa-arrow-up';
             else if (txt.includes('atras') || txt.includes('atrás')) icon = 'fa-arrow-down';
-            else if (txt.includes('giro') || txt.includes('vuelta')) icon = 'fa-sync';
+            else if (txt.includes('giro')) icon = 'fa-sync';
+            else if (txt.includes('vuelta')) icon = 'fa-share';
             else if (txt.includes('detener')) icon = 'fa-stop-circle';
 
             html += `
                 <tr>
                     <td>
-                        <span style="color: var(--accent-cyan); width: 20px; display:inline-block; text-align:center;">
+                        <span style="color: var(--accent-cyan); width: 25px; display:inline-block; text-align:center;">
                             <i class="fas ${icon}"></i>
                         </span> 
-                        ${mov.status_texto}
+                        <span class="text-white fw-bold">${mov.status_texto}</span>
                     </td>
-                    <td><span class="badge ${badgeColor}" style="font-size: 0.7rem;">${mov.tipo_ejecucion}</span></td>
+                    <td>
+                        <span class="badge ${badgeColor} rounded-pill" style="font-size: 0.7rem; font-weight: normal;">
+                            ${tipoTexto.toUpperCase()}
+                        </span>
+                    </td>
                     <td class="text-white-50">${mov.duracion_segundos}s</td>
-                    <td class="text-end text-muted small">${hora}</td>
+                    <td class="text-end text-muted small" style="font-family: monospace;">${hora}</td>
                 </tr>
             `;
         });
@@ -161,24 +186,68 @@ class MonitoreoManager {
         container.innerHTML = html;
     }
 
-    // ==================== KPIs y ALERTAS ====================
+    // ==================== ACTUALIZACIÓN DE INTERFAZ (KPIs) ====================
 
     actualizarKPIs(data) {
-        const setText = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+        // Función helper para escribir en el DOM
+        const setText = (id, val) => { 
+            const el = document.getElementById(id); 
+            if(el) el.textContent = val; 
+        };
         
+        // Tarjetas Superiores
         setText('metricMovimientos', data.estadisticas?.total_movimientos || 0);
-        setText('metricTiempo', (data.estadisticas?.dias_activo || 1) + 'd');
-        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
-
-        // Estado conexión Robot (Viene del backend)
+        setText('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
+        
+        // Estado conexión Robot (Viene del backend websocket status)
         const elEstado = document.getElementById('metricEstado');
         if (elEstado) {
             const conectado = data.estado_ws_arduino === 'Conectado';
             elEstado.innerHTML = conectado 
-                ? '<span class="text-success fw-bold">En Línea</span>' 
-                : '<span class="text-danger fw-bold">Offline</span>';
+                ? '<span class="text-success fw-bold"><i class="fas fa-wifi me-2"></i>En Línea</span>' 
+                : '<span class="text-danger fw-bold"><i class="fas fa-wifi-slash me-2"></i>Offline</span>';
+        }
+
+        // Footer Info
+        setText('infoActualizacion', this.estadoApp.ultimaActualizacion.toLocaleTimeString());
+        const infoServidor = document.getElementById('infoServidor');
+        if(infoServidor) {
+            infoServidor.textContent = 'Conectado';
+            infoServidor.className = 'text-success fw-bold';
         }
     }
+
+    actualizarResumenManiobras(data) {
+        // Contadores de la parte inferior
+        let c = { adelante: 0, atras: 0, giros: 0, vueltas: 0 };
+        
+        if (data.movimientos_por_tipo) {
+            data.movimientos_por_tipo.forEach(m => {
+                const t = m.status_texto.toLowerCase();
+                if (t.includes('adelante')) c.adelante += m.cantidad;
+                else if (t.includes('atras') || t.includes('atrás')) c.atras += m.cantidad;
+                else if (t.includes('giro')) c.giros += m.cantidad;
+                else if (t.includes('vuelta')) c.vueltas += m.cantidad;
+            });
+        }
+        
+        const setT = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+        setT('statAdelante', c.adelante);
+        setT('statAtras', c.atras);
+        setT('statGiros', c.giros);
+        setT('statVueltas', c.vueltas);
+    }
+
+    actualizarEstadoConexion(conectado) {
+        const el = document.querySelector('.estado-conexion');
+        if(el) {
+            el.innerHTML = conectado 
+                ? '<span class="status-indicator status-online pulse"></span> Conectado'
+                : '<span class="status-indicator status-offline"></span> Desconectado';
+        }
+    }
+
+    // ==================== ALERTAS ====================
 
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
@@ -190,7 +259,7 @@ class MonitoreoManager {
 
         if (!container) return;
         if (alertas.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-4">Sin alertas</div>';
+            container.innerHTML = '<div class="text-center text-muted py-4">Sin alertas recientes</div>';
             return;
         }
 
@@ -199,17 +268,24 @@ class MonitoreoManager {
             const fecha = new Date(alerta.fecha_hora || alerta.timestamp).toLocaleTimeString();
             // Detectar si es grave (status 1 = obstaculo frontal)
             const grave = alerta.status_clave === 1; 
-            const color = grave ? 'danger' : 'warning';
-            const icono = grave ? 'fa-exclamation-circle' : 'fa-exclamation-triangle';
+            
+            // Mapa de nombres de obstáculos (Coincide con tu BD)
+            const nombres = {
+                1: "Obstáculo Frontal",
+                2: "Obstáculo Izquierda",
+                3: "Obstáculo Derecha",
+                4: "Obstáculo Envolvente",
+                5: "Retroceso Forzoso"
+            };
+            const nombreObs = nombres[alerta.status_clave] || alerta.status_texto || "Alerta General";
 
             html += `
-                <div class="alert alert-${color} mb-2 p-2 d-flex justify-content-between align-items-center" style="font-size: 0.85rem;">
+                <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 d-flex justify-content-between align-items-center shadow-sm" style="font-size: 0.85rem; border-left: 4px solid ${grave ? '#ff4444' : '#ffbb33'};">
                     <div>
-                        <i class="fas ${icono} me-2"></i>
-                        <strong>${alerta.status_texto || 'Obstáculo'}</strong>
-                        <div class="small opacity-75">${alerta.mensaje || 'Detectado por sensor'}</div>
+                        <i class="fas ${grave ? 'fa-radiation-alt' : 'fa-exclamation-triangle'} me-2"></i>
+                        <strong>${nombreObs}</strong>
                     </div>
-                    <span class="small">${fecha}</span>
+                    <span class="small opacity-75">${fecha}</span>
                 </div>
             `;
         });
@@ -217,37 +293,26 @@ class MonitoreoManager {
     }
 
     agregarAlertaVisual(data) {
-        // Solo para efecto visual inmediato si llega por socket
-        // La lista real se recarga con actualizarDatos()
+        // Inyección visual rápida para feedback inmediato
         const container = document.getElementById('alertasContainer');
         if (container) {
+            // Si estaba vacío, limpiamos el mensaje de "sin alertas"
+            if(container.innerText.includes("Sin alertas")) container.innerHTML = "";
+            
             const div = document.createElement('div');
-            div.className = 'alert alert-danger mb-2 p-2 border-3 border-start border-danger fade show';
-            div.innerHTML = `<strong>¡NUEVA ALERTA!</strong> ${data.mensaje} <small class="float-end">Ahora</small>`;
+            div.className = 'alert alert-danger mb-2 p-2 border-start border-4 border-danger fade show';
+            div.innerHTML = `
+                <div class="d-flex justify-content-between">
+                    <span><i class="fas fa-exclamation-circle me-2"></i><strong>¡NUEVA ALERTA!</strong></span>
+                    <small>Ahora</small>
+                </div>
+                <div class="small mt-1">${data.mensaje}</div>
+            `;
             container.prepend(div);
         }
     }
 
-    actualizarResumenManiobras(data) {
-        // Contadores inferiores
-        let c = { adelante: 0, atras: 0, giros: 0, vueltas: 0 };
-        if (data.movimientos_por_tipo) {
-            data.movimientos_por_tipo.forEach(m => {
-                const t = m.status_texto.toLowerCase();
-                if (t.includes('adelante')) c.adelante += m.cantidad;
-                else if (t.includes('atras') || t.includes('atrás')) c.atras += m.cantidad;
-                else if (t.includes('giro')) c.giros += m.cantidad;
-                else if (t.includes('vuelta')) c.vueltas += m.cantidad;
-            });
-        }
-        const setT = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
-        setT('statAdelante', c.adelante);
-        setT('statAtras', c.atras);
-        setT('statGiros', c.giros);
-        setT('statVueltas', c.vueltas);
-    }
-
-    // ==================== GRÁFICO CHART.JS ====================
+    // ==================== GRÁFICOS (Chart.js) ====================
 
     inicializarGrafico() {
         const ctx = document.getElementById('actividadChart');
@@ -260,9 +325,11 @@ class MonitoreoManager {
                 datasets: [{
                     label: 'Movimientos',
                     data: [],
-                    borderColor: '#ff2d95',
+                    borderColor: '#ff2d95', // Tu color accent-pink
                     backgroundColor: 'rgba(255, 45, 149, 0.1)',
                     borderWidth: 2,
+                    pointBackgroundColor: '#fff',
+                    pointRadius: 4,
                     fill: true,
                     tension: 0.4
                 }]
@@ -270,10 +337,25 @@ class MonitoreoManager {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { labels: { color: '#fff' } } },
+                plugins: {
+                    legend: { labels: { color: '#fff' } },
+                    tooltip: { 
+                        mode: 'index', 
+                        intersect: false,
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleColor: '#00ffff' 
+                    }
+                },
                 scales: {
-                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } },
-                    y: { grid: { color: '#333' }, ticks: { color: '#aaa' }, beginAtZero: true }
+                    x: { 
+                        grid: { color: 'rgba(255,255,255,0.05)' }, 
+                        ticks: { color: '#aaa' } 
+                    },
+                    y: { 
+                        grid: { color: 'rgba(255,255,255,0.05)' }, 
+                        ticks: { color: '#aaa' }, 
+                        beginAtZero: true 
+                    }
                 }
             }
         });
@@ -289,11 +371,11 @@ class MonitoreoManager {
         if (isHourly && data.actividad_por_hora) {
             chart.data.labels = data.actividad_por_hora.map(d => `${d.hora}:00`);
             chart.data.datasets[0].data = data.actividad_por_hora.map(d => d.movimientos);
-            chart.data.datasets[0].label = 'Movimientos por Hora';
+            chart.data.datasets[0].label = 'Movimientos por Hora (24h)';
         } else if (!isHourly && data.movimientos_por_tipo) {
             chart.data.labels = data.movimientos_por_tipo.map(d => d.status_texto);
             chart.data.datasets[0].data = data.movimientos_por_tipo.map(d => d.cantidad);
-            chart.data.datasets[0].label = 'Movimientos por Tipo';
+            chart.data.datasets[0].label = 'Total por Tipo';
         }
         chart.update();
     }
@@ -303,7 +385,7 @@ class MonitoreoManager {
         this.actualizarGrafico();
     }
 
-    // Modal de Métricas Avanzadas de BD
+    // Modal de Métricas Avanzadas (Conexión BD extra)
     async verMetricasAvanzadas() {
         try {
             const res = await fetch(`${this.backendUrl}/api/estadisticas-obstaculos`);
@@ -312,16 +394,18 @@ class MonitoreoManager {
             const container = document.getElementById('metricasContenido');
             if (container && data.obstaculos_por_tipo) {
                 container.innerHTML = `
-                    <h6 class="mb-3 border-bottom pb-2 border-secondary">Estadísticas de Obstáculos (BD)</h6>
-                    <ul class="list-group">
+                    <h6 class="mb-3 border-bottom pb-2 border-secondary text-info">Estadísticas de Obstáculos (BD Histórico)</h6>
+                    <div class="row g-3">
                         ${data.obstaculos_por_tipo.map(o => `
-                            <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center">
-                                <span>${o.status_texto}</span>
-                                <span class="badge bg-danger rounded-pill">${o.cantidad} eventos</span>
-                            </li>
+                            <div class="col-md-6">
+                                <div class="p-2 bg-dark border border-secondary rounded d-flex justify-content-between align-items-center">
+                                    <span>${o.status_texto}</span>
+                                    <span class="badge bg-danger rounded-pill">${o.cantidad} eventos</span>
+                                </div>
+                            </div>
                         `).join('')}
-                    </ul>
-                    <p class="text-muted small mt-3 text-center">Datos históricos de los últimos 7 días</p>
+                    </div>
+                    <p class="text-muted small mt-4 text-center"><i class="fas fa-info-circle me-1"></i>Datos agregados de los últimos 7 días</p>
                 `;
                 new bootstrap.Modal(document.getElementById('metricasModal')).show();
             }
