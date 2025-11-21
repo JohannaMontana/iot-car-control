@@ -94,56 +94,75 @@ class MonitoreoManager {
 
     // ==================== TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ====================
 
-  // === TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ===
-    renderizarTablaHistorial(movimientos) {
+renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
         if (!container) return;
 
         if (!movimientos || movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-white-50 py-4">Sin datos en BD</div>';
+            container.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-box-open fa-2x mb-2"></i><br>Sin movimientos registrados</div>';
             return;
         }
 
-        // Estilos forzados para texto blanco
+        // Construcción de la tabla HTML
         let html = `
             <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle" style="background: transparent; color: white;">
-                <thead>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.3); color: #ccc;">
-                        <th class="text-white">Acción</th>
-                        <th class="text-white">Tipo</th>
-                        <th class="text-white">Duración</th>
-                        <th class="text-end text-white">Hora</th>
-                    </tr>
-                </thead>
-                <tbody>
+                <table class="table table-dark table-hover table-sm mb-0 align-middle" style="background: transparent;">
+                    <thead>
+                        <tr class="text-secondary" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <th scope="col"><i class="fas fa-bolt me-2"></i>Acción</th>
+                            <th scope="col">Tipo</th>
+                            <th scope="col">Duración</th>
+                            <th scope="col" class="text-end">Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
         `;
 
-        movimientos.forEach(m => {
-            // Formateo seguro de hora
-            let hora = '-';
-            if(m.fecha_hora) {
-                const rawDate = m.fecha_hora.endsWith('Z') ? m.fecha_hora : m.fecha_hora + 'Z';
-                const d = new Date(rawDate);
-                if(!isNaN(d.getTime())) {
-                    hora = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                }
+        movimientos.forEach(mov => {
+            // Formatear fecha
+            let hora = "--:--";
+            if (mov.fecha_hora) {
+                const fechaObj = new Date(mov.fecha_hora);
+                hora = fechaObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             }
 
-            let badgeClass = 'bg-primary';
-            let tipo = m.tipo_ejecucion || 'Manual';
-            if (tipo === 'automatica') badgeClass = 'bg-danger'; 
-            if (tipo === 'demo') badgeClass = 'bg-info text-dark';
+            // Estilo de Badge (Etiqueta de color)
+            let badgeColor = 'bg-secondary';
+            let tipoTexto = mov.tipo_ejecucion || 'Manual';
+            
+            if (tipoTexto === 'manual') badgeColor = 'bg-primary'; // Azul
+            if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark'; // Cyan
+            if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; } // Rojo
+
+            // Icono según el texto del movimiento
+            let icon = 'fa-circle';
+            const txt = (mov.status_texto || '').toLowerCase();
+            
+            if (txt.includes('adelante')) icon = 'fa-arrow-up';
+            else if (txt.includes('atras') || txt.includes('atrás')) icon = 'fa-arrow-down';
+            else if (txt.includes('giro')) icon = 'fa-sync';
+            else if (txt.includes('vuelta')) icon = 'fa-share';
+            else if (txt.includes('detener')) icon = 'fa-stop-circle';
 
             html += `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <td class="text-white fw-bold">${m.status_texto}</td>
-                    <td><span class="badge ${badgeClass} rounded-pill" style="font-size:0.7rem">${tipo.toUpperCase()}</span></td>
-                    <td class="text-white-50 small">${m.duracion_segundos}s</td>
-                    <td class="text-end text-white-50 small font-monospace">${hora}</td>
+                <tr>
+                    <td>
+                        <span style="color: var(--accent-cyan); width: 25px; display:inline-block; text-align:center;">
+                            <i class="fas ${icon}"></i>
+                        </span> 
+                        <span class="text-white fw-bold">${mov.status_texto}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${badgeColor} rounded-pill" style="font-size: 0.7rem; font-weight: normal;">
+                            ${tipoTexto.toUpperCase()}
+                        </span>
+                    </td>
+                    <td class="text-white-50">${mov.duracion_segundos}s</td>
+                    <td class="text-end text-muted small" style="font-family: monospace;">${hora}</td>
                 </tr>
             `;
         });
+
         html += '</tbody></table></div>';
         container.innerHTML = html;
     }
