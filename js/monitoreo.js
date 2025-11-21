@@ -94,50 +94,60 @@ class MonitoreoManager {
 
     // ==================== TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ====================
 
-   renderizarTablaHistorial(movimientos) {
+  // === TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ===
+    renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
-        if(!container) return;
+        if (!container) return;
 
-        if(!movimientos || movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-4">Sin movimientos recientes</div>';
+        if (!movimientos || movimientos.length === 0) {
+            container.innerHTML = '<div class="text-center text-white-50 py-4">Sin datos en BD</div>';
             return;
         }
 
+        // Estilos forzados para texto blanco
         let html = `
             <div class="table-responsive">
-            <table class="table table-dark table-sm table-hover mb-0 align-middle">
+            <table class="table table-hover table-sm mb-0 align-middle" style="background: transparent; color: white;">
                 <thead>
-                    <tr class="text-secondary">
-                        <th>Acción</th>
-                        <th>Tipo</th>
-                        <th>Dur</th>
-                        <th class="text-end">Hora</th>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.3); color: #ccc;">
+                        <th class="text-white">Acción</th>
+                        <th class="text-white">Tipo</th>
+                        <th class="text-white">Duración</th>
+                        <th class="text-end text-white">Hora</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
         movimientos.forEach(m => {
-            const hora = m.fecha_hora ? new Date(m.fecha_hora).toLocaleTimeString() : '-';
-            
-            // Colores según tipo
-            let badge = 'bg-primary';
+            // Formateo seguro de hora
+            let hora = '-';
+            if(m.fecha_hora) {
+                const rawDate = m.fecha_hora.endsWith('Z') ? m.fecha_hora : m.fecha_hora + 'Z';
+                const d = new Date(rawDate);
+                if(!isNaN(d.getTime())) {
+                    hora = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                }
+            }
+
+            let badgeClass = 'bg-primary';
             let tipo = m.tipo_ejecucion || 'Manual';
-            if (tipo === 'automatica') badge = 'bg-danger'; // Evasión de obstáculo
-            if (tipo === 'demo') badge = 'bg-info text-dark';
+            if (tipo === 'automatica') badgeClass = 'bg-danger'; 
+            if (tipo === 'demo') badgeClass = 'bg-info text-dark';
 
             html += `
-                <tr>
-                    <td><strong class="text-white">${m.status_texto}</strong></td>
-                    <td><span class="badge ${badge} rounded-pill" style="font-size: 0.7rem;">${tipo}</span></td>
-                    <td class="text-muted small">${m.duracion_segundos}s</td>
-                    <td class="text-end text-white-50 small">${hora}</td>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <td class="text-white fw-bold">${m.status_texto}</td>
+                    <td><span class="badge ${badgeClass} rounded-pill" style="font-size:0.7rem">${tipo.toUpperCase()}</span></td>
+                    <td class="text-white-50 small">${m.duracion_segundos}s</td>
+                    <td class="text-end text-white-50 small font-monospace">${hora}</td>
                 </tr>
             `;
         });
         html += '</tbody></table></div>';
         container.innerHTML = html;
     }
+
     // ==================== ALERTAS (TEXTOS CORRECTOS) ====================
 
     renderizarListaAlertas(alertas) {
