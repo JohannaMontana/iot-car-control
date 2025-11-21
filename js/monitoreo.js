@@ -1,35 +1,29 @@
 class MonitoreoManager {
     constructor() {
-        // Asegúrate de que esta IP sea la de tu servidor EC2
+        // Asegúrate que esta IP es la correcta
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         this.chart = null;
         
         this.estadoApp = {
             metricas: {},
-            vistaGrafico: 'hora', // 'hora' o 'tipo'
+            vistaGrafico: 'hora', 
             ultimaActualizacion: new Date()
         };
 
-        // Inicializar cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
             this.init();
         });
     }
 
     init() {
-        console.log('🚀 Iniciando MonitoreoManager...');
         this.inicializarGrafico();
         this.conectarSocket();
-        
-        // Carga inicial de datos
         this.actualizarDatos();
         
-        // Polling de respaldo cada 3 segundos
+        // Actualizar cada 3s
         setInterval(() => this.actualizarDatos(), 3000);
     }
-
-    // ==================== CONEXIÓN REAL-TIME ====================
 
     conectarSocket() {
         this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
@@ -38,66 +32,48 @@ class MonitoreoManager {
             const el = document.querySelector('.estado-conexion');
             if(el) el.innerHTML = '<span class="status-indicator status-online pulse"></span> Conectado';
         });
-
+        
         this.socket.on('disconnect', () => {
             const el = document.querySelector('.estado-conexion');
             if(el) el.innerHTML = '<span class="status-indicator status-offline"></span> Desconectado';
         });
 
-        // Si hay movimiento nuevo, actualizar tablas inmediatamente
         this.socket.on('movimiento_agregado', () => this.actualizarDatos());
         
-        // Si hay alerta, mostrarla y actualizar lista
         this.socket.on('alerta_obstaculo', (d) => {
             this.agregarAlertaVisual(d);
             this.actualizarDatos();
         });
     }
 
-    // ==================== CARGA DE DATOS ====================
-
     async actualizarDatos() {
         try {
-            // 1. HISTORIAL (Tabla de 10)
             const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const dataHist = await resHist.json();
-            
-            if(dataHist.success && dataHist.movimientos) {
-                this.renderizarTablaHistorial(dataHist.movimientos);
-            }
+            if(dataHist.success) this.renderizarTablaHistorial(dataHist.movimientos);
 
-            // 2. ALERTAS
             const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
             const dataAlert = await resAlert.json();
-            
-            if(dataAlert.alertas) {
-                this.renderizarListaAlertas(dataAlert.alertas);
-            }
+            this.renderizarListaAlertas(dataAlert.alertas);
 
-            // 3. ESTADO GENERAL (KPIs)
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             this.actualizarKPIs(dataEstado);
 
-            // 4. MÉTRICAS (Gráfico)
             const resMet = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMet = await resMet.json();
             this.estadoApp.metricas = dataMet;
             this.actualizarGrafico();
             this.actualizarResumen(dataMet);
 
-            // Actualizar timestamp footer
             this.estadoApp.ultimaActualizacion = new Date();
             const infoUpd = document.getElementById('infoActualizacion');
             if(infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
 
-        } catch(e) { 
-            console.error("Error polling monitoreo:", e); 
-        }
+        } catch(e) { console.error("Error polling:", e); }
     }
 
-    // ==================== TABLA DE HISTORIAL (CORREGIDA: TEXTO BLANCO) ====================
-
+    // === AQUÍ ESTÁ LA CORRECCIÓN VISUAL ===
     renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
         if (!container) return;
@@ -107,23 +83,18 @@ class MonitoreoManager {
             return;
         }
 
-        // CORRECCIÓN AQUÍ: style="color: white;" forzado en la tabla
+        // Usamos el mismo estilo de lista que en Control, pero con formato de tabla flexible
         let html = `
-            <div class="table-responsive">
-            <table class="table table-hover table-sm mb-0 align-middle" style="background: transparent; color: white;">
-                <thead>
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.3); color: #ccc;">
-                        <th>Acción</th>
-                        <th>Tipo</th>
-                        <th>Duración</th>
-                        <th class="text-end">Hora</th>
-                    </tr>
-                </thead>
-                <tbody>
+            <div class="d-flex justify-content-between text-muted small border-bottom border-secondary pb-2 mb-2 px-2">
+                <span style="width: 40%">ACCIÓN</span>
+                <span style="width: 20%">TIPO</span>
+                <span style="width: 20%">DURACIÓN</span>
+                <span style="width: 20%" class="text-end">HORA</span>
+            </div>
+            <ul class="list-group list-group-flush">
         `;
 
         movimientos.forEach(m => {
-            // Formateo seguro de hora
             let hora = '-';
             if(m.fecha_hora) {
                 const d = new Date(m.fecha_hora);
@@ -134,30 +105,38 @@ class MonitoreoManager {
                 }
             }
 
-            let badge = 'bg-primary';
-            if(m.tipo_ejecucion === 'automatica') badge = 'bg-danger'; // Evasión
-            if(m.tipo_ejecucion === 'demo') badge = 'bg-info text-dark';
+            let badgeClass = 'bg-secondary';
+            let tipo = m.tipo_ejecucion || 'Manual';
+            if (tipo === 'manual') badgeClass = 'bg-primary';
+            if (tipo === 'automatica') badgeClass = 'bg-danger'; 
+            if (tipo === 'demo') badgeClass = 'bg-info text-dark';
 
-            // CORRECCIÓN: Asegurar clases text-white en celdas
+            // Estilo IDÉNTICO al de Control.js: bg-transparent y text-white
             html += `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <td class="text-white fw-bold">${m.status_texto}</td>
-                    <td><span class="badge ${badge} rounded-pill" style="font-size:0.7rem">${m.tipo_ejecucion}</span></td>
-                    <td class="text-white-50 small">${m.duracion_segundos}s</td>
-                    <td class="text-end text-white-50 small font-monospace">${hora}</td>
-                </tr>
+                <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between align-items-center px-2 py-2">
+                    <div style="width: 40%" class="d-flex align-items-center">
+                        <i class="fas fa-arrow-right me-2 text-info small"></i>
+                        <span class="fw-bold">${m.status_texto}</span>
+                    </div>
+                    <div style="width: 20%">
+                        <span class="badge ${badgeClass}" style="font-size: 0.65rem; opacity: 0.9;">${tipo.toUpperCase()}</span>
+                    </div>
+                    <div style="width: 20%" class="text-white-50 small">
+                        ${m.duracion_segundos}s
+                    </div>
+                    <div style="width: 20%" class="text-end text-white-50 small font-monospace">
+                        ${hora}
+                    </div>
+                </li>
             `;
         });
-        html += '</tbody></table></div>';
+        html += '</ul>';
         container.innerHTML = html;
     }
-
-    // ==================== ALERTAS (TEXTOS CORRECTOS) ====================
 
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
         const counters = [document.getElementById('contadorAlertas'), document.getElementById('metricAlertas')];
-        
         counters.forEach(c => { if(c) c.textContent = alertas ? alertas.length : 0; });
 
         if (!container) return;
@@ -166,13 +145,9 @@ class MonitoreoManager {
             return;
         }
 
-        // MAPEO EXACTO SEGÚN TU BD
         const mapaBD = {
-            1: "Adelante",
-            2: "Adelante-Izquierda",
-            3: "Adelante-Derecha",
-            4: "Adelante-Izquierda-Derecha",
-            5: "Retrocede"
+            1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 
+            4: "Adelante-Izquierda-Derecha", 5: "Retrocede"
         };
 
         let html = '';
@@ -182,13 +157,13 @@ class MonitoreoManager {
             const grave = (a.status_clave === 1 || a.status_clave === 5);
 
             html += `
-                <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center">
+                <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center border-0" style="background: ${grave ? 'rgba(220,53,69,0.2)' : 'rgba(255,193,7,0.2)'}; color: white;">
                     <div>
                         <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
                         <strong>${nombre}</strong>
-                        <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
+                        <div style="opacity: 0.7; font-size: 0.7rem;">${a.mensaje || 'Detección automática'}</div>
                     </div>
-                    <span style="opacity: 0.8;">${fecha}</span>
+                    <span class="text-white-50" style="font-size: 0.7rem;">${fecha}</span>
                 </div>
             `;
         });
@@ -199,7 +174,6 @@ class MonitoreoManager {
         const container = document.getElementById('alertasContainer');
         if(container) {
             if(container.innerText.includes("Sin alertas")) container.innerHTML = "";
-            
             const mapa = { 1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 5: "Retrocede" };
             const txt = mapa[data.tipo_obstaculo] || "Obstáculo";
             
@@ -209,8 +183,6 @@ class MonitoreoManager {
             container.prepend(div);
         }
     }
-
-    // ==================== KPIs y GRÁFICOS ====================
 
     actualizarKPIs(data) {
         const set = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
@@ -222,9 +194,6 @@ class MonitoreoManager {
             const on = data.estado_ws_arduino === 'Conectado';
             elSt.innerHTML = on ? '<span class="text-success fw-bold">En Línea</span>' : '<span class="text-danger fw-bold">Offline</span>';
         }
-        
-        const serv = document.getElementById('infoServidor');
-        if(serv) { serv.textContent = 'Conectado'; serv.className = 'text-success fw-bold'; }
     }
 
     actualizarResumen(data) {
@@ -253,8 +222,8 @@ class MonitoreoManager {
                 maintainAspectRatio: false, 
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { grid: { color: '#333' }, ticks: { color: '#aaa' } },
-                    y: { grid: { color: '#333' }, ticks: { color: '#aaa' } }
+                    x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#aaa' } }
                 }
             }
         });

@@ -11,6 +11,7 @@
 </head>
 <body>
     <div class="container-fluid py-4">
+        <!-- Header -->
         <div class="row mb-4">
             <div class="col text-center">
                 <h1 class="gradient-text fw-bold">
@@ -29,43 +30,42 @@
             </div>
         </div>
 
+        <!-- KPIs -->
         <div class="row mb-4">
             <div class="col-md-3 col-6 mb-3">
-                <div class="metric-card">
-                    <i class="fas fa-wifi fa-2x" style="color: var(--accent-cyan);"></i>
-                    <div class="metric-value" id="metricEstado">-</div>
-                    <div class="metric-label">Estado Robot</div>
+                <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
+                    <h3 id="metricEstado" class="text-white mb-0">-</h3>
+                    <small class="text-muted">Estado Robot</small>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="metric-card">
-                    <i class="fas fa-running fa-2x" style="color: var(--accent-pink);"></i>
-                    <div class="metric-value" id="metricMovimientos">0</div>
-                    <div class="metric-label">Movimientos Totales</div>
+                <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
+                    <h3 id="metricMovimientos" class="text-white mb-0">0</h3>
+                    <small class="text-muted">Total Movimientos</small>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="metric-card">
-                    <i class="fas fa-exclamation-triangle fa-2x" style="color: #ff9500;"></i>
-                    <div class="metric-value" id="metricAlertas">0</div>
-                    <div class="metric-label">Alertas Activas</div>
+                <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
+                    <h3 id="metricAlertas" class="text-warning mb-0">0</h3>
+                    <small class="text-muted">Alertas Activas</small>
                 </div>
             </div>
             <div class="col-md-3 col-6 mb-3">
-                <div class="metric-card">
-                    <i class="fas fa-clock fa-2x" style="color: var(--accent-purple);"></i>
-                    <div class="metric-value" id="metricTiempo">0d</div>
-                    <div class="metric-label">Días Activo</div>
+                <div class="metric-card text-center p-3 bg-dark border border-secondary rounded">
+                    <h3 id="metricTiempo" class="text-info mb-0">0d</h3>
+                    <small class="text-muted">Tiempo Activo</small>
                 </div>
             </div>
         </div>
 
         <div class="row">
+            <!-- Columna Izquierda: Gráficos y Tabla -->
             <div class="col-lg-8">
                 
+                <!-- Gráfico -->
                 <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h4 class="mb-0">
+                        <h4 class="mb-0 text-white">
                             <i class="fas fa-chart-bar me-2" style="color: var(--accent-pink);"></i>
                             Actividad
                         </h4>
@@ -79,9 +79,10 @@
                     </div>
                 </div>
 
+                <!-- TABLA HISTORIAL (10) -->
                 <div class="glass-panel">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="mb-0">
+                        <h4 class="mb-0 text-white">
                             <i class="fas fa-history me-2" style="color: var(--accent-cyan);"></i>
                             Últimos 10 Movimientos
                         </h4>
@@ -98,42 +99,42 @@
                     </div>
                 </div>
 
+                <!-- Stats Rápidos -->
                 <div class="glass-panel mt-4">
                     <h5 class="mb-3 text-muted">Resumen de Maniobras</h5>
                     <div class="row text-center">
-                        <div class="col-3"><h3 id="statAdelante" class="fw-bold text-white">0</h3><small>Adelante</small></div>
-                        <div class="col-3"><h3 id="statAtras" class="fw-bold text-white">0</h3><small>Atrás</small></div>
-                        <div class="col-3"><h3 id="statGiros" class="fw-bold text-white">0</h3><small>Giros</small></div>
-                        <div class="col-3"><h3 id="statVueltas" class="fw-bold text-white">0</h3><small>Vueltas</small></div>
+                        <div class="col-3"><h3 id="statAdelante" class="fw-bold text-white">0</h3><small class="text-white-50">Adelante</small></div>
+                        <div class="col-3"><h3 id="statAtras" class="fw-bold text-white">0</h3><small class="text-white-50">Atrás</small></div>
+                        <div class="col-3"><h3 id="statGiros" class="fw-bold text-white">0</h3><small class="text-white-50">Giros</small></div>
+                        <div class="col-3"><h3 id="statVueltas" class="fw-bold text-white">0</h3><small class="text-white-50">Vueltas</small></div>
                     </div>
                 </div>
             </div>
 
+            <!-- Columna Derecha: Alertas y Info -->
             <div class="col-lg-4">
                 
+                <!-- Log de Alertas -->
                 <div class="glass-panel mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0">
+                        <h5 class="mb-0 text-white">
                             <i class="fas fa-bell me-2" style="color: #ff9500;"></i>
-                            Log de Alertas
+                            Alertas Recientes
                         </h5>
                         <span class="badge bg-danger" id="contadorAlertas">0</span>
                     </div>
                     <div id="alertasContainer" class="alert-history" style="max-height: 400px; overflow-y: auto;">
-                        <div class="text-center text-muted py-4">Sin alertas recientes</div>
+                        <div class="text-center text-muted py-4">Sin alertas</div>
                     </div>
                 </div>
 
+                <!-- Info Sistema -->
                 <div class="glass-panel">
-                    <h5 class="mb-3"><i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>Conexión</h5>
+                    <h5 class="mb-3 text-white"><i class="fas fa-microchip me-2" style="color: var(--accent-purple);"></i>Sistema</h5>
                     <ul class="list-group list-group-flush bg-transparent">
                         <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
                             <span>Servidor:</span>
                             <span class="text-success fw-bold" id="infoServidor">Conectado</span>
-                        </li>
-                        <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-secondary">
-                            <span>Robot WebSocket:</span>
-                            <span id="metricEstadoDetailed" class="fw-bold">-</span>
                         </li>
                         <li class="list-group-item bg-transparent text-white d-flex justify-content-between border-0">
                             <span>Última Sync:</span>
@@ -143,7 +144,7 @@
                     <div class="d-grid gap-2 mt-4">
                         <button class="btn btn-primary" onclick="monitoreoManager.verMetricasAvanzadas()" 
                                 style="background: linear-gradient(145deg, var(--accent-purple), #6a1b9a); border:none;">
-                            <i class="fas fa-database me-2"></i>Ver Histórico Obstáculos
+                            <i class="fas fa-database me-2"></i>Ver Histórico
                         </button>
                     </div>
                 </div>
@@ -151,11 +152,12 @@
         </div>
     </div>
 
+    <!-- Modal -->
     <div class="modal fade" id="metricasModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content bg-dark text-white border border-secondary">
                 <div class="modal-header border-secondary">
-                    <h5 class="modal-title">Estadísticas de Base de Datos</h5>
+                    <h5 class="modal-title">Estadísticas Históricas</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body" id="metricasContenido">Cargando...</div>
@@ -166,7 +168,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <script src="js/monitoreo.js"></script>
 </body>
 </html>
