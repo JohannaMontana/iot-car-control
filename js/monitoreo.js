@@ -7,10 +7,11 @@ class MonitoreoManager {
         
         this.estadoApp = {
             metricas: {},
-            vistaGrafico: 'hora', 
+            vistaGrafico: 'hora', // 'hora' o 'tipo'
             ultimaActualizacion: new Date()
         };
 
+        // Inicializar cuando el DOM esté listo
         document.addEventListener('DOMContentLoaded', () => {
             this.init();
         });
@@ -21,9 +22,10 @@ class MonitoreoManager {
         this.inicializarGrafico();
         this.conectarSocket();
         
+        // Carga inicial de datos
         this.actualizarDatos();
         
-        // Actualizar cada 3 segundos
+        // Polling de respaldo cada 3 segundos
         setInterval(() => this.actualizarDatos(), 3000);
     }
 
@@ -42,9 +44,10 @@ class MonitoreoManager {
             if(el) el.innerHTML = '<span class="status-indicator status-offline"></span> Desconectado';
         });
 
-        // Actualizar datos al recibir eventos
+        // Si hay movimiento nuevo, actualizar tablas inmediatamente
         this.socket.on('movimiento_agregado', () => this.actualizarDatos());
         
+        // Si hay alerta, mostrarla y actualizar lista
         this.socket.on('alerta_obstaculo', (d) => {
             this.agregarAlertaVisual(d);
             this.actualizarDatos();
@@ -55,7 +58,7 @@ class MonitoreoManager {
 
     async actualizarDatos() {
         try {
-            // 1. HISTORIAL
+            // 1. HISTORIAL (Tabla de 10)
             const resHist = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const dataHist = await resHist.json();
             if(dataHist.success && dataHist.movimientos) {
@@ -69,18 +72,19 @@ class MonitoreoManager {
                 this.renderizarListaAlertas(dataAlert.alertas);
             }
 
-            // 3. ESTADO GENERAL
+            // 3. ESTADO GENERAL (KPIs)
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             this.actualizarKPIs(dataEstado);
 
-            // 4. MÉTRICAS
+            // 4. MÉTRICAS (Gráfico)
             const resMet = await fetch(`${this.backendUrl}/api/metricas`);
             const dataMet = await resMet.json();
             this.estadoApp.metricas = dataMet;
             this.actualizarGrafico();
             this.actualizarResumen(dataMet);
 
+            // Actualizar timestamp footer
             this.estadoApp.ultimaActualizacion = new Date();
             const infoUpd = document.getElementById('infoActualizacion');
             if(infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
@@ -88,7 +92,7 @@ class MonitoreoManager {
         } catch(e) { console.error("Error polling monitoreo:", e); }
     }
 
-    // ==================== TABLA DE HISTORIAL (CORRECCIÓN DE HORA) ====================
+    // ==================== TABLA DE HISTORIAL (CORREGIDA VISUALMENTE) ====================
 
     renderizarTablaHistorial(movimientos) {
         const container = document.getElementById('historialMovimientos');
@@ -99,45 +103,41 @@ class MonitoreoManager {
             return;
         }
 
+        // CORRECCIÓN: Estilos forzados para texto blanco
         let html = `
             <div class="table-responsive">
             <table class="table table-hover table-sm mb-0 align-middle" style="background: transparent; color: white;">
                 <thead>
                     <tr style="border-bottom: 1px solid rgba(255,255,255,0.3); color: #ccc;">
-                        <th>Acción</th>
-                        <th>Tipo</th>
-                        <th>Duración</th>
-                        <th class="text-end">Hora</th>
+                        <th class="text-white">Acción</th>
+                        <th class="text-white">Tipo</th>
+                        <th class="text-white">Duración</th>
+                        <th class="text-end text-white">Hora</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
         movimientos.forEach(m => {
-            // --- CORRECCIÓN DE HORA: UTC A LOCAL ---
+            // Formateo seguro de hora
             let hora = '-';
             if(m.fecha_hora) {
-                // Si la fecha viene sin 'Z', se la agregamos para forzar UTC
-                // y que el navegador la convierta a TU hora local.
-                let rawDate = m.fecha_hora;
-                if (!rawDate.endsWith('Z')) rawDate += 'Z';
-                
+                const rawDate = m.fecha_hora.endsWith('Z') ? m.fecha_hora : m.fecha_hora + 'Z';
                 const d = new Date(rawDate);
                 if(!isNaN(d.getTime())) {
                     hora = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 }
             }
 
-            let badgeClass = 'bg-secondary';
+            let badge = 'bg-primary';
             let tipo = m.tipo_ejecucion || 'Manual';
-            if (tipo === 'manual') badgeClass = 'bg-primary';
-            if (tipo === 'automatica') badgeClass = 'bg-danger'; 
-            if (tipo === 'demo') badgeClass = 'bg-info text-dark';
+            if (tipo === 'automatica') badge = 'bg-danger'; // Evasión
+            if (tipo === 'demo') badge = 'bg-info text-dark';
 
             html += `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
                     <td class="text-white fw-bold">${m.status_texto}</td>
-                    <td><span class="badge ${badgeClass} rounded-pill" style="font-size:0.7rem">${tipo.toUpperCase()}</span></td>
+                    <td><span class="badge ${badge} rounded-pill" style="font-size:0.7rem">${tipo.toUpperCase()}</span></td>
                     <td class="text-white-50 small">${m.duracion_segundos}s</td>
                     <td class="text-end text-white-50 small font-monospace">${hora}</td>
                 </tr>
@@ -147,32 +147,35 @@ class MonitoreoManager {
         container.innerHTML = html;
     }
 
-    // ==================== ALERTAS (CORRECCIÓN DE HORA) ====================
+    // ==================== ALERTAS (TEXTOS CORRECTOS) ====================
 
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('alertasContainer');
         const counters = [document.getElementById('contadorAlertas'), document.getElementById('metricAlertas')];
+        
         counters.forEach(c => { if(c) c.textContent = alertas ? alertas.length : 0; });
 
         if (!container) return;
         if (!alertas || alertas.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-4">Sin alertas</div>';
+            container.innerHTML = '<div class="text-center text-white-50 py-4">Sin alertas</div>';
             return;
         }
 
+        // MAPEO EXACTO SEGÚN TU BD
         const mapaBD = {
-            1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 
-            4: "Adelante-Izquierda-Derecha", 5: "Retrocede"
+            1: "Adelante", 
+            2: "Adelante-Izquierda", 
+            3: "Adelante-Derecha", 
+            4: "Adelante-Izquierda-Derecha", 
+            5: "Retrocede"
         };
 
         let html = '';
         alertas.forEach(a => {
-            // Corrección de hora local también aquí
             let fecha = '';
             if(a.fecha_hora) {
-                let rawDate = a.fecha_hora;
-                if (!rawDate.endsWith('Z')) rawDate += 'Z';
-                const d = new Date(rawDate);
+                const raw = a.fecha_hora.endsWith('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
+                const d = new Date(raw);
                 if(!isNaN(d.getTime())) fecha = d.toLocaleTimeString();
             }
 
@@ -184,7 +187,7 @@ class MonitoreoManager {
                     <div>
                         <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
                         <strong>${nombre}</strong>
-                        <div style="opacity: 0.7; font-size: 0.7rem;">${a.mensaje || 'Detección automática'}</div>
+                        <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
                     </div>
                     <span class="text-white-50" style="font-size: 0.7rem;">${fecha}</span>
                 </div>
@@ -208,7 +211,7 @@ class MonitoreoManager {
         }
     }
 
-    // ==================== GRÁFICOS Y KPIs ====================
+    // ==================== KPIs y GRÁFICOS ====================
 
     actualizarKPIs(data) {
         const set = (id, v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
