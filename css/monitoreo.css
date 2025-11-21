@@ -59,3 +59,33 @@
     color: var(--text-muted);
     text-transform: uppercase;
 }
+
+/* CORRECCIÓN PARA TABLA DE HISTORIAL - TEXTO BLANCO */
+.table-container table {
+    background: transparent !important;
+    color: white !important;
+}
+
+.table-container table th {
+    color: white !important;
+    border-bottom: 1px solid rgba(255,255,255,0.3) !important;
+}
+
+.table-container table td {
+    color: white !important;
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+}
+
+.table-container table tbody tr:hover td {
+    background-color: rgba(255,255,255,0.1) !important;
+    color: white !important;
+}
+
+/* Asegurar que los badges tengan buen contraste */
+.table-container .badge {
+    color: white !important;
+}
+
+.table-container .badge.bg-info {
+    color: #000 !important; /* Para badges info que necesiten texto oscuro */
+}

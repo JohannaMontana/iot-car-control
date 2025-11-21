@@ -13,7 +13,6 @@ class ControlManager {
         this.socket.on('disconnect', () => this.actualizarUIConexion(false));
 
         this.socket.on('movimiento_agregado', () => {
-            // Pequeña espera para asegurar que la BD ya grabó
             setTimeout(() => this.cargarHistorialRapido(), 500);
         });
 
@@ -48,7 +47,7 @@ class ControlManager {
                     status_clave: status,
                     velocidad: this.getVelocidad(),
                     duracion_segundos: 0,
-                    timestamp_local: this.getLocalTimestamp() // <--- ENVIAMOS HORA LOCAL
+                    timestamp_local: this.getLocalTimestamp() // <-- ENVIAMOS HORA LOCAL
                 })
             });
         } catch (e) { console.error(e); }
@@ -67,7 +66,7 @@ class ControlManager {
         } catch(e) {}
     }
 
-    // === HISTORIAL CORREGIDO (Muestra 5 items o el mensaje de vacío) ===
+    // === HISTORIAL CORREGIDO (Muestra 5 items) ===
     async cargarHistorialRapido() {
         const cont = document.getElementById('historialMovimientos');
         if (!cont) return;
@@ -75,9 +74,9 @@ class ControlManager {
         try {
             const res = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const data = await res.json();
-            
-            // Revisa que la propiedad 'movimientos' exista y tenga datos
-            if (data.success && data.movimientos && data.movimientos.length > 0) {
+
+            // CRÍTICO: Verificar éxito y que el array exista
+            if (data.success && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
                 const ultimos5 = data.movimientos.slice(0, 5);
                 
                 let html = '<ul class="list-group list-group-flush">';
@@ -85,11 +84,13 @@ class ControlManager {
                     let hora = '...';
                     if(mov.fecha_hora) {
                         try {
-                            // Convertimos la hora de texto a formato legible
-                            hora = String(mov.fecha_hora).split(' ')[1].substring(0,5);
+                            // La fecha viene como string SQL ("YYYY-MM-DD HH:MM:SS"). Solo tomamos HH:MM
+                            const timePart = String(mov.fecha_hora).split(' ')[1] || '';
+                            hora = timePart.substring(0,5);
                         } catch(e) {}
                     }
 
+                    // Usamos clases de texto correctas (text-white)
                     html += `
                         <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between px-0 py-2 small">
                             <span><i class="fas fa-check me-2 text-success"></i>${mov.status_texto}</span>
@@ -100,7 +101,6 @@ class ControlManager {
                 html += '</ul>';
                 cont.innerHTML = html;
             } else {
-                // Si la consulta fue exitosa pero no hay datos
                 cont.innerHTML = '<div class="text-center text-muted small py-2">Sin movimientos registrados</div>';
             }
         } catch (e) { 
@@ -125,10 +125,10 @@ class ControlManager {
         setTimeout(() => div.remove(), 3500);
     }
     
-    // Helpers
+    // UI Helpers
+    actualizarUIConexion(online) { /* ... */ }
+    async actualizarEstado() { /* ... */ }
     mostrarNotificacion(msg, type) {} 
     obtenerNombreMovimiento(id){ return "Mov "+id; }
-    actualizarEstado() {}
-    actualizarUIConexion(online) {}
 }
 window.controlManager = new ControlManager();
