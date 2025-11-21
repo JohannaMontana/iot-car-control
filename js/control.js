@@ -7,147 +7,178 @@ class ControlManager {
     }
 
     init() {
-        // Iniciar Socket.IO
         this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
 
         this.socket.on('connect', () => this.actualizarUIConexion(true));
         this.socket.on('disconnect', () => this.actualizarUIConexion(false));
 
-        // Cuando el backend confirma un movimiento, recargamos el historial
         this.socket.on('movimiento_agregado', () => {
-            setTimeout(() => this.cargarHistorialRapido(), 300);
+            setTimeout(() => this.cargarHistorialRapido(), 500);
         });
 
-        // ESCUCHA DE ALERTAS (Obstáculos)
         this.socket.on('alerta_obstaculo', (data) => this.mostrarAlertaObstaculo(data));
 
-        // Carga inicial
+        // 🔥 ESCUCHAR EVENTOS DE DEMO
+        this.socket.on('demo_progreso', (data) => {
+            if (window.demoManager) {
+                window.demoManager.actualizarProgresoDemo(data);
+            }
+        });
+
+        this.socket.on('demo_completada', (data) => {
+            if (window.demoManager) {
+                window.demoManager.demoCompletada(data);
+            }
+        });
+
         this.actualizarEstado();
         this.cargarHistorialRapido();
         
-        // Polling de seguridad cada 4s
         setInterval(() => {
             this.actualizarEstado();
             this.cargarHistorialRapido();
         }, 4000);
     }
 
-    // === VELOCIDAD ===
-    obtenerVelocidadSeleccionada() {
-        const radios = document.getElementsByName('velocidad');
-        for (const radio of radios) {
-            if (radio.checked) return parseInt(radio.value);
-        }
-        return 180; // Default Media
+    getVelocidad() {
+        const r = document.querySelector('input[name="velocidad"]:checked');
+        return r ? parseInt(r.value) : 180;
     }
 
-    // === COMANDOS ===
-    async moverCarrito(statusClave) {
-        const velocidad = this.obtenerVelocidadSeleccionada();
-        
+    // Obtener fecha local formateada para enviar al servidor
+    getLocalTimestamp() {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        return new Date(now - offset).toISOString().slice(0, 19).replace('T', ' ');
+    }
+
+    async moverCarrito(status) {
         try {
             await fetch(`${this.backendUrl}/api/movimiento`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    status_clave: statusClave,
-                    velocidad: velocidad,
-                    duracion_segundos: 0 // Continuo
+                    status_clave: status,
+                    velocidad: this.getVelocidad(),
+                    duracion_segundos: 0,
+                    timestamp_local: this.getLocalTimestamp() // <-- ENVIAMOS HORA LOCAL
                 })
             });
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error("Error moviendo carrito:", e);
+            this.mostrarNotificacion('Error de conexión', 'danger');
+        }
     }
 
     async detenerCarrito() {
-        try { await fetch(`${this.backendUrl}/api/detener`, { method: 'POST' }); } catch(e){}
+        try { 
+            await fetch(`${this.backendUrl}/api/detener`, { method: 'POST' }); 
+        } catch(e){
+            console.error("Error deteniendo carrito:", e);
+        }
     }
 
-    // === HISTORIAL MINIATURA (5) ===
+    async simularObstaculo() {
+        try {
+            await fetch(`${this.backendUrl}/api/obstaculo`, {
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ status_clave: 1, dispositivo_id: 1 })
+            });
+        } catch(e) {
+            console.error("Error simulando obstáculo:", e);
+        }
+    }
+
+    // === HISTORIAL CORREGIDO (Muestra 5 items) ===
     async cargarHistorialRapido() {
-        const container = document.getElementById('historialMovimientos');
-        if (!container) return;
+        const cont = document.getElementById('historialMovimientos');
+        if (!cont) return;
 
         try {
             const res = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const data = await res.json();
 
-            if (data.success && data.movimientos && data.movimientos.length > 0) {
-                // Tomamos solo los 5 primeros
+            // CRÍTICO: Verificar éxito y que el array exista
+            if (data.success && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
                 const ultimos5 = data.movimientos.slice(0, 5);
                 
                 let html = '<ul class="list-group list-group-flush">';
                 ultimos5.forEach(mov => {
-                    // Formateo de hora seguro
-                    let hora = "Reciente";
+                    let hora = '...';
                     if(mov.fecha_hora) {
-                        hora = new Date(mov.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        try {
+                            // La fecha viene como string SQL ("YYYY-MM-DD HH:MM:SS"). Solo tomamos HH:MM
+                            const timePart = String(mov.fecha_hora).split(' ')[1] || '';
+                            hora = timePart.substring(0,5);
+                        } catch(e) {}
                     }
 
+                    // Usamos clases de texto correctas (text-white)
                     html += `
                         <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between px-0 py-2 small">
-                            <span><i class="fas fa-arrow-right me-2 text-info"></i>${mov.status_texto}</span>
-                            <span class="badge bg-secondary" style="font-size: 0.7rem;">${hora}</span>
+                            <span><i class="fas fa-check me-2 text-success"></i>${mov.status_texto}</span>
+                            <span class="text-white-50" style="font-family:monospace">${hora}</span>
                         </li>
                     `;
                 });
                 html += '</ul>';
-                container.innerHTML = html;
+                cont.innerHTML = html;
             } else {
-                container.innerHTML = '<div class="text-center text-muted py-3 small">Sin movimientos</div>';
+                cont.innerHTML = '<div class="text-center text-muted small py-2">Sin movimientos registrados</div>';
             }
         } catch (e) { 
-            console.error(e);
-            container.innerHTML = '<div class="text-center text-danger small">Error de carga</div>';
+            console.error("Error cargando historial:", e);
+            cont.innerHTML = '<div class="text-center text-danger small py-2">Error de conexión al historial</div>';
         }
     }
 
-    // === ALERTAS VISUALES (Popup) ===
     mostrarAlertaObstaculo(data) {
-        // MAPEO A TUS REFERENCIAS DE BD
-        const referencias = {
-            1: "Adelante",
-            2: "Adelante-Izquierda",
-            3: "Adelante-Derecha",
-            4: "Adelante-Izquierda-Derecha",
-            5: "Retrocede"
+        // Referencias BD
+        const map = { 
+            1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 
+            4: "Adelante-Izq-Der", 5: "Retrocede" 
         };
+        const txt = map[data.tipo_obstaculo] || "Obstáculo";
         
-        const nombreObstaculo = referencias[data.tipo_obstaculo] || "Obstáculo General";
-
         const div = document.createElement('div');
-        div.style.cssText = `
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(220, 20, 60, 0.98); color: white; padding: 30px;
-            border-radius: 15px; z-index: 11000; text-align: center;
-            box-shadow: 0 0 100px rgba(255, 0, 0, 0.8); width: 350px; border: 2px solid white;
-            animation: pulse 0.5s infinite alternate;
-        `;
-        div.innerHTML = `
-            <i class="fas fa-exclamation-triangle fa-4x mb-3"></i>
-            <h3 class="fw-bold">¡OBSTÁCULO!</h3>
-            <div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">
-                ${nombreObstaculo}
-            </div>
-            <small class="d-block">Acción: ${data.accion}</small>
-        `;
+        div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(220,20,60,0.98);color:white;padding:30px;border-radius:15px;z-index:11000;text-align:center;width:320px;border:2px solid white;animation:pulse 0.5s infinite alternate;';
+        div.innerHTML = `<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h3>¡OBSTÁCULO!</h3><div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">${txt}</div><small class="d-block">Acción: ${data.accion}</small>`;
         document.body.appendChild(div);
-        
-        // Sonido simple
-        try { new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play(); } catch(e){}
-        
+        try { 
+            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play(); 
+        } catch(e){}
         setTimeout(() => div.remove(), 3500);
     }
-
-    // === UI ===
+    
+    // 🔥 FUNCIONES QUE FALTABAN
     actualizarUIConexion(online) {
-        const txt = document.getElementById('textoConexion');
-        const ind = document.querySelector('.status-indicator');
-        if(online) {
-            if(txt) txt.textContent = 'Conectado';
-            if(ind) ind.className = 'status-indicator status-online pulse';
+        const estadoConexion = document.getElementById('estadoConexion');
+        const textoConexion = document.getElementById('textoConexion');
+        const statusIndicator = document.querySelector('.status-indicator');
+        
+        if (online) {
+            if (estadoConexion) {
+                estadoConexion.className = 'badge bg-success';
+                estadoConexion.textContent = 'Conectado';
+            }
+            if (textoConexion) {
+                textoConexion.textContent = 'Conectado';
+            }
+            if (statusIndicator) {
+                statusIndicator.className = 'status-indicator status-online pulse';
+            }
         } else {
-            if(txt) txt.textContent = 'Desconectado';
-            if(ind) ind.className = 'status-indicator status-offline';
+            if (estadoConexion) {
+                estadoConexion.className = 'badge bg-danger';
+                estadoConexion.textContent = 'Desconectado';
+            }
+            if (textoConexion) {
+                textoConexion.textContent = 'Desconectado';
+            }
+            if (statusIndicator) {
+                statusIndicator.className = 'status-indicator status-offline';
+            }
         }
     }
 
@@ -156,19 +187,49 @@ class ControlManager {
             const res = await fetch(`${this.backendUrl}/api/estado-actual`);
             const data = await res.json();
             
-            const elRobot = document.getElementById('robotEstado');
-            if (elRobot) {
-                const online = data.estado_ws_arduino === 'Conectado';
-                elRobot.innerHTML = online 
-                    ? '<span class="text-success">Online</span>' 
-                    : '<span class="text-danger">Offline</span>';
+            const robotEstado = document.getElementById('robotEstado');
+            if (robotEstado) {
+                if (data.estado_ws_arduino === 'Conectado') {
+                    robotEstado.innerHTML = '<span class="text-success fw-bold">En Línea</span>';
+                } else {
+                    robotEstado.innerHTML = '<span class="text-danger fw-bold">Offline</span>';
+                }
             }
-        } catch(e){}
+        } catch (e) {
+            console.error("Error actualizando estado:", e);
+            const robotEstado = document.getElementById('robotEstado');
+            if (robotEstado) {
+                robotEstado.innerHTML = '<span class="text-warning fw-bold">Error</span>';
+            }
+        }
     }
+
+    mostrarNotificacion(msg, type) {
+        // Crear notificación temporal
+        const div = document.createElement('div');
+        div.className = `alert alert-${type} position-fixed`;
+        div.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 300px;';
+        div.innerHTML = msg;
+        
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 3000);
+    }
+
+    obtenerNombreMovimiento(id) {
+        const movimientos = {
+            1: "Adelante", 2: "Atrás", 3: "Detener",
+            4: "Adelante-Derecha", 5: "Adelante-Izquierda", 
+            6: "Atrás-Derecha", 7: "Atrás-Izquierda",
+            8: "Giro Derecha", 9: "Giro Izquierda",
+            10: "Vuelta 360° Derecha", 11: "Vuelta 360° Izquierda"
+        };
+        return movimientos[id] || `Mov ${id}`;
+    }
+
     
-    // Helpers
-    mostrarNotificacion(msg, type) { /* Opcional */ }
-    obtenerNombreMovimiento(id) { return "Mov " + id; }
+    obtenerVelocidadSeleccionada() {
+        return this.getVelocidad();
+    }
 }
 
 window.controlManager = new ControlManager();
