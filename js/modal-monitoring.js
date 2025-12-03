@@ -94,18 +94,31 @@ class ModalMonitoringManager {
             console.error("Error cargando historial:", e);
         }
     }
-
-    async cargarAlertas() {
-        try {
-            const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
-            const dataAlert = await resAlert.json();
-            if (dataAlert.alertas) {
-                this.renderizarListaAlertas(dataAlert.alertas);
-            }
-        } catch (e) {
-            console.error("Error cargando alertas:", e);
+async cargarAlertas() {
+    try {
+        const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
+        const dataAlert = await resAlert.json();
+        
+        // CORREGIDO: Asegurar que las alertas sean un array
+        const alertas = dataAlert.alertas || [];
+        
+        const counter = document.getElementById('modalContadorAlertas');
+        if (counter) {
+            counter.textContent = alertas.length;
+            counter.style.display = alertas.length > 0 ? 'inline-block' : 'none';
         }
+        
+        // También actualizar en KPIs
+        const kpiAlertas = document.getElementById('modalMetricAlertas');
+        if (kpiAlertas) {
+            kpiAlertas.textContent = alertas.length;
+        }
+        
+        this.renderizarListaAlertas(alertas);
+    } catch (e) {
+        console.error("Error cargando alertas:", e);
     }
+}
 
     async cargarEstadoActual() {
         try {

@@ -393,35 +393,35 @@ class ControlManager {
         }
     }
 
-    async actualizarEstado() {
-        try {
-            console.log('📊 Actualizando estado...');
-            const res = await fetch(`${this.backendUrl}/api/estado-actual`);
-            const data = await res.json();
-            console.log('📡 Datos estado recibidos:', data);
-            
-            const robotEstado = document.getElementById('robotEstado');
-            if (robotEstado) {
-                if (data.estado_ws_arduino === 'Conectado') {
-                    robotEstado.innerHTML = '<span class="text-success fw-bold">En Línea</span>';
-                    this.updateCarLight(true);
-                    console.log('✅ Carro CONECTADO - Luz verde');
-                } else {
-                    robotEstado.innerHTML = '<span class="text-danger fw-bold">Offline</span>';
-                    this.updateCarLight(false);
-                    console.log('❌ Carro DESCONECTADO - Luz roja');
-                }
-            }
-        } catch (e) {
-            console.error("❌ Error actualizando estado:", e);
-            const robotEstado = document.getElementById('robotEstado');
-            if (robotEstado) {
-                robotEstado.innerHTML = '<span class="text-warning fw-bold">Error</span>';
+async actualizarEstado() {
+    try {
+        console.log('📊 Actualizando estado...');
+        const res = await fetch(`${this.backendUrl}/api/estado-actual`);
+        const data = await res.json();
+        console.log('📡 Datos estado recibidos:', data);
+        
+        const robotEstado = document.getElementById('robotEstado');
+        if (robotEstado) {
+            // CORREGIDO: Verifica correctamente la conexión
+            if (data.estado_ws_arduino === 'Conectado' || data.conexiones_count > 0) {
+                robotEstado.innerHTML = '<span class="text-success fw-bold">En Línea</span>';
+                this.updateCarLight(true);
+                console.log('✅ Carro CONECTADO - Luz verde');
+            } else {
+                robotEstado.innerHTML = '<span class="text-danger fw-bold">Offline</span>';
                 this.updateCarLight(false);
-                console.log('⚠️ Error obteniendo estado - Luz roja');
+                console.log('❌ Carro DESCONECTADO - Luz roja');
             }
         }
+    } catch (e) {
+        console.error("❌ Error actualizando estado:", e);
+        const robotEstado = document.getElementById('robotEstado');
+        if (robotEstado) {
+            robotEstado.innerHTML = '<span class="text-warning fw-bold">Error</span>';
+            this.updateCarLight(false);
+        }
     }
+}
 
     // NUEVAS FUNCIONES PARA LAS LUCES
     updateServerLight(online) {
@@ -463,27 +463,36 @@ class ControlManager {
     }
 
     // FUNCIÓN NUEVA: Cargar total de movimientos
-    async cargarTotalMovimientos() {
-        try {
-            console.log('📈 Cargando total de movimientos...');
-            const res = await fetch(`${this.backendUrl}/api/metricas`);
-            const data = await res.json();
-            console.log('📊 Total movimientos:', data.total_movimientos);
-            
-            const totalMov = document.getElementById('totalMovimientos');
-            if (totalMov && data.total_movimientos !== undefined) {
-                totalMov.textContent = data.total_movimientos;
-            }
-            
-            // También actualizar en el modal si está abierto
-            const modalMov = document.getElementById('modalMetricMovimientos');
-            if (modalMov) {
-                modalMov.textContent = data.total_movimientos || 0;
-            }
-        } catch (e) {
-            console.error("❌ Error cargando total de movimientos:", e);
+   async cargarTotalMovimientos() {
+    try {
+        console.log('📈 Cargando total de movimientos...');
+        const res = await fetch(`${this.backendUrl}/api/metricas`);
+        const data = await res.json();
+        
+        // CORREGIDO: Sumar todos los movimientos
+        let totalMovimientos = 0;
+        if (data.movimientos_por_tipo && Array.isArray(data.movimientos_por_tipo)) {
+            data.movimientos_por_tipo.forEach(tipo => {
+                totalMovimientos += tipo.cantidad || 0;
+            });
         }
+        
+        console.log('📊 Total movimientos calculados:', totalMovimientos);
+        
+        const totalMov = document.getElementById('totalMovimientos');
+        if (totalMov) {
+            totalMov.textContent = totalMovimientos;
+        }
+        
+        // También actualizar en el modal
+        const modalMov = document.getElementById('modalMetricMovimientos');
+        if (modalMov) {
+            modalMov.textContent = totalMovimientos;
+        }
+    } catch (e) {
+        console.error("❌ Error cargando total de movimientos:", e);
     }
+}
 
     mostrarNotificacion(msg, type) {
         console.log(`🔔 Mostrando notificación: ${type} - ${msg}`);
