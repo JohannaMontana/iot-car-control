@@ -1,75 +1,85 @@
-class MonitoreoManager {
+/**
+ * Monitoring Manager for Modal
+ * Handles all monitoring functionality within the modal
+ */
+
+class ModalMonitoringManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500';
         this.socket = null;
         this.chart = null;
-
         this.estadoApp = {
             metricas: {},
             vistaGrafico: 'hora',
             ultimaActualizacion: new Date()
         };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            this.init();
-        });
+        this.init();
     }
 
     init() {
-        console.log('🚀 Iniciando MonitoreoManager...');
+        console.log('🚀 Iniciando ModalMonitoringManager...');
         this.inicializarGrafico();
         this.conectarSocket();
-        this.actualizarDatos();
-        setInterval(() => this.actualizarDatos(), 3000);
+        
+        // Actualizar datos cuando se abre el modal
+        const modal = document.getElementById('monitoringModal');
+        if (modal) {
+            modal.addEventListener('shown.bs.modal', () => {
+                this.actualizarDatos();
+                this.startAutoRefresh();
+            });
+            
+            modal.addEventListener('hidden.bs.modal', () => {
+                this.stopAutoRefresh();
+            });
+        }
     }
 
-    // ==================== CONEXIÓN REAL-TIME ====================
+    startAutoRefresh() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+        }
+        this.refreshInterval = setInterval(() => this.actualizarDatos(), 3000);
+    }
+
+    stopAutoRefresh() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
+    }
 
     conectarSocket() {
         this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
 
         this.socket.on('connect', () => {
-            const el = document.querySelector('.estado-conexion');
-            if (el) el.innerHTML = '<span class="status-indicator status-online pulse"></span> Conectado';
-        });
-
-        this.socket.on('disconnect', () => {
-            const el = document.querySelector('.estado-conexion');
-            if (el) el.innerHTML = '<span class="status-indicator status-offline"></span> Desconectado';
+            console.log('📡 Conectado al servidor WebSocket desde modal');
         });
 
         this.socket.on('movimiento_agregado', () => this.actualizarDatos());
-        this.socket.on('alerta_obstaculo', (d) => {
-            this.agregarAlertaVisual(d);
-            this.actualizarDatos();
-        });
+        this.socket.on('alerta_obstaculo', () => this.actualizarDatos());
     }
-
-    // ==================== CARGA DE DATOS - USANDO TUS ENDPOINTS ====================
 
     async actualizarDatos() {
         try {
-            // 1. HISTORIAL - usando /api/ultimos-10-movimientos
-            await this.cargarHistorialMovimientos();
-
-            // 2. ALERTAS - usando /api/alertas
-            await this.cargarAlertas();
-
-            // 3. ESTADO GENERAL - usando /api/estado-actual
-            await this.cargarEstadoActual();
-
-            // 4. MÉTRICAS - usando /api/metricas
-            await this.cargarMetricas();
-
-            // 5. RESUMEN MANIOBRAS - usando /api/resumen-maniobras
-            await this.cargarResumenManiobras();
+            await Promise.all([
+                this.cargarHistorialMovimientos(),
+                this.cargarAlertas(),
+                this.cargarEstadoActual(),
+                this.cargarMetricas(),
+                this.cargarResumenManiobras()
+            ]);
 
             this.estadoApp.ultimaActualizacion = new Date();
-            const infoUpd = document.getElementById('infoActualizacion');
+            const infoUpd = document.getElementById('modalInfoActualizacion');
             if (infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
 
+            // Actualizar también las estadísticas rápidas en el panel principal
+            this.actualizarQuickStats();
+
         } catch (e) { 
-            console.error("Error polling monitoreo:", e); 
+            console.error("Error actualizando datos del modal:", e); 
         }
     }
 
@@ -102,7 +112,6 @@ class MonitoreoManager {
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
             this.actualizarKPIs(dataEstado);
-            this.actualizarEstadoWS(dataEstado.estado_ws_arduino === 'Conectado');
         } catch (e) {
             console.error("Error cargando estado:", e);
         }
@@ -124,25 +133,16 @@ class MonitoreoManager {
             const res = await fetch(`${this.backendUrl}/api/resumen-maniobras`);
             const data = await res.json();
             
-            const set = (id, v) => { 
-                const e = document.getElementById(id); 
-                if (e) e.textContent = v; 
-            };
-            
-            set('statAdelante', data.adelante || 0);
-            set('statAtras', data.atras || 0);
-            set('statGiros', data.giros || 0);
-            set('statVueltas', data.vueltas || 0);
+            // Actualizar estadísticas rápidas
+            this.actualizarQuickStats(data);
             
         } catch (e) {
             console.error("Error cargando resumen maniobras:", e);
         }
     }
 
-    // ==================== TABLA DE HISTORIAL ====================
-
     renderizarTablaHistorial(movimientos) {
-        const container = document.getElementById('historialMovimientos');
+        const container = document.getElementById('modalHistorialMovimientos');
         if (!container) return;
 
         if (!movimientos || movimientos.length === 0) {
@@ -210,13 +210,11 @@ class MonitoreoManager {
         container.innerHTML = html;
     }
 
-    // ==================== ALERTAS ====================
-
     renderizarListaAlertas(alertas) {
-        const container = document.getElementById('alertasContainer');
-        const counters = [document.getElementById('contadorAlertas'), document.getElementById('metricAlertas')];
+        const container = document.getElementById('modalAlertasContainer');
+        const counter = document.getElementById('modalContadorAlertas');
 
-        counters.forEach(c => { if (c) c.textContent = alertas ? alertas.length : 0; });
+        if (counter) counter.textContent = alertas ? alertas.length : 0;
 
         if (!container) return;
         if (!alertas || alertas.length === 0) {
@@ -258,60 +256,62 @@ class MonitoreoManager {
         container.innerHTML = html;
     }
 
-    agregarAlertaVisual(data) {
-        const container = document.getElementById('alertasContainer');
-        if (container) {
-            if (container.innerText.includes("Sin alertas")) container.innerHTML = "";
-
-            const mapa = { 1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 5: "Retrocede" };
-            const txt = mapa[data.tipo_obstaculo] || "Obstáculo";
-
-            const div = document.createElement('div');
-            div.className = 'alert alert-danger mb-2 p-2 border-start border-4 border-danger fade show';
-            div.innerHTML = `<strong>¡NUEVO: ${txt}!</strong> <small class="float-end">Ahora</small>`;
-            container.prepend(div);
-        }
-    }
-
-    // ==================== KPIs y GRÁFICOS ====================
-
     actualizarKPIs(data) {
         const set = (id, v) => { 
             const el = document.getElementById(id); 
             if (el) el.textContent = v; 
         };
         
-        set('metricMovimientos', data.estadisticas?.total_movimientos || 0);
-        
-        // QUITADO: Tiempo activo
-        // set('metricTiempo', (data.estadisticas?.dias_activo || 0) + 'd');
+        set('modalMetricMovimientos', data.estadisticas?.total_movimientos || 0);
+        set('modalMetricAlertas', data.estadisticas?.alertas_activas || 0);
 
-        const elSt = document.getElementById('metricEstado');
+        const elSt = document.getElementById('modalMetricEstado');
         if (elSt) {
             const on = data.estado_ws_arduino === 'Conectado';
             elSt.innerHTML = on ? 
                 '<span class="text-success fw-bold">En Línea</span>' : 
                 '<span class="text-danger fw-bold">Offline</span>';
         }
-    }
 
-    actualizarEstadoWS(conectado) {
-        const el = document.getElementById('metricEstadoDetailed');
-        if (el) {
-            el.innerHTML = conectado ? 
+        const elDet = document.getElementById('modalMetricEstadoDetailed');
+        if (elDet) {
+            const on = data.estado_ws_arduino === 'Conectado';
+            elDet.innerHTML = on ? 
                 '<span class="text-success fw-bold">Conectado</span>' : 
                 '<span class="text-danger fw-bold">Desconectado</span>';
         }
+
+        // Actualizar también en el panel principal
+        this.actualizarQuickStats(data);
     }
 
-    actualizarResumen(data) {
-        // Esta función ya no es necesaria ya que usamos /api/resumen-maniobras
-        // Se mantiene por compatibilidad pero no hace nada
+    actualizarQuickStats(data) {
+        // Actualizar estadísticas rápidas en el panel principal
+        const setQuick = (id, v) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = v;
+        };
+
+        if (data) {
+            setQuick('quickMovimientos', data.estadisticas?.total_movimientos || 0);
+            setQuick('quickAlertas', data.estadisticas?.alertas_activas || 0);
+            
+            const onlineStatus = data.estado_ws_arduino === 'Conectado' ? 
+                '<span class="text-success">✓</span>' : 
+                '<span class="text-danger">✗</span>';
+            setQuick('quickOnline', onlineStatus);
+        }
     }
 
     inicializarGrafico() {
-        const ctx = document.getElementById('actividadChart');
+        const ctx = document.getElementById('modalActividadChart');
         if (!ctx) return;
+        
+        // Destruir gráfico anterior si existe
+        if (this.chart) {
+            this.chart.destroy();
+        }
+
         this.chart = new Chart(ctx, {
             type: 'line',
             data: { 
@@ -320,24 +320,62 @@ class MonitoreoManager {
                     label: 'Actividad', 
                     data: [], 
                     borderColor: '#ff2d95', 
+                    backgroundColor: 'rgba(255, 45, 149, 0.1)',
                     tension: 0.4, 
-                    fill: true, 
-                    backgroundColor: 'rgba(255,45,149,0.1)' 
+                    fill: true,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#ff2d95',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
                 }] 
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: { 
+                    legend: { 
+                        display: false 
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#ff2d95',
+                        borderWidth: 1
+                    }
+                },
                 scales: {
                     x: { 
-                        grid: { color: 'rgba(255,255,255,0.1)' }, 
-                        ticks: { color: '#aaa' } 
+                        grid: { 
+                            color: 'rgba(255,255,255,0.1)',
+                            borderColor: 'rgba(255,255,255,0.1)'
+                        }, 
+                        ticks: { 
+                            color: '#aaa',
+                            font: {
+                                size: 11
+                            }
+                        }
                     },
                     y: { 
-                        grid: { color: 'rgba(255,255,255,0.1)' }, 
-                        ticks: { color: '#aaa' } 
+                        grid: { 
+                            color: 'rgba(255,255,255,0.1)',
+                            borderColor: 'rgba(255,255,255,0.1)'
+                        }, 
+                        ticks: { 
+                            color: '#aaa',
+                            font: {
+                                size: 11
+                            },
+                            beginAtZero: true
+                        }
                     }
+                },
+                animation: {
+                    duration: 1000,
+                    easing: 'easeOutQuart'
                 }
             }
         });
@@ -351,11 +389,14 @@ class MonitoreoManager {
         if (isHourly && d.actividad_por_hora) {
             this.chart.data.labels = d.actividad_por_hora.map(x => `${x.hora}:00`);
             this.chart.data.datasets[0].data = d.actividad_por_hora.map(x => x.movimientos);
+            this.chart.data.datasets[0].label = 'Actividad por Hora';
         } else if (!isHourly && d.movimientos_por_tipo) {
             this.chart.data.labels = d.movimientos_por_tipo.map(x => x.status_texto);
             this.chart.data.datasets[0].data = d.movimientos_por_tipo.map(x => x.cantidad);
+            this.chart.data.datasets[0].label = 'Movimientos por Tipo';
         }
-        this.chart.update();
+        
+        this.chart.update('none');
     }
 
     cambiarVistaGrafico(v) { 
@@ -369,18 +410,32 @@ class MonitoreoManager {
             const data = await res.json();
             const div = document.getElementById('metricasContenido');
             if (div && data.obstaculos_por_tipo) {
-                div.innerHTML = '<ul class="list-group">' +
+                div.innerHTML = '<div class="row">' +
                     data.obstaculos_por_tipo.map(o => `
-                        <li class="list-group-item bg-dark text-white d-flex justify-content-between border-secondary">
-                            <span>${o.status_texto}</span>
-                            <span class="badge bg-danger rounded-pill">${o.cantidad}</span>
-                        </li>`).join('') + '</ul>';
-                new bootstrap.Modal(document.getElementById('metricasModal')).show();
+                        <div class="col-md-6 mb-3">
+                            <div class="metric-card p-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>${o.status_texto}</span>
+                                    <span class="badge bg-danger fs-6">${o.cantidad}</span>
+                                </div>
+                                <div class="progress mt-2" style="height: 8px;">
+                                    <div class="progress-bar bg-danger" style="width: ${Math.min(o.cantidad * 10, 100)}%"></div>
+                                </div>
+                            </div>
+                        </div>`).join('') + '</div>';
+                
+                // Mostrar el modal
+                const metricasModal = new bootstrap.Modal(document.getElementById('metricasModal'));
+                metricasModal.show();
             }
         } catch (e) { 
             console.error("Error cargando métricas avanzadas:", e);
+            alert('Error al cargar las métricas avanzadas');
         }
     }
 }
 
-window.monitoreoManager = new MonitoreoManager();
+// Inicializar cuando se carga la página
+document.addEventListener('DOMContentLoaded', () => {
+    window.modalMonitoringManager = new ModalMonitoringManager();
+});

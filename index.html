@@ -1,299 +1,820 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Carrito - Control Inteligente</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control IoT Car</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="icon" href="img/icon-car.png" type="image/x-icon">
+    <link href="css/common.css" rel="stylesheet">
+    <link href="css/control.css" rel="stylesheet">
     <style>
-        :root {
-            --primary-bg: #0a0a0a;
-            --accent-pink: #ff2d95;
-            --accent-cyan: #00ffff;
-            --accent-purple: #8a2be2;
-            --text-light: #ffffff;
-        }
-        
         body {
-            background: linear-gradient(135deg, var(--primary-bg) 0%, #2d1b69 100%);
-            color: var(--text-light);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            min-height: 100vh;
+            overflow: hidden !important;
+            height: 100vh;
+            max-height: 100vh;
+            padding: 0;
+            margin: 0;
+        }
+
+        .container-fluid {
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
+            padding: 10px !important;
+        }
+
+        .content-wrapper {
+            height: calc(100vh - 120px);
+            /* Cambiado de 90px a 120px para más espacio */
+            max-height: calc(100vh - 120px);
+            /* Cambiado de 90px a 120px */
+            overflow: visible !important;
+            /* CAMBIADO: de hidden a visible */
+            padding-bottom: 10px;
+            /* Añadido padding inferior */
+        }
+
+        .no-scroll {
+            overflow: hidden !important;
+        }
+
+        /* Status lights in title */
+        .status-lights {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 5px;
+        }
+
+        .status-light {
             display: flex;
             align-items: center;
-            justify-content: center;
-            overflow: hidden;
+            gap: 5px;
+            font-size: 0.9rem;
         }
 
-        .main-container {
-            text-align: center;
-            max-width: 800px;
-            padding: 40px 20px;
-        }
-
-        .title {
-            background: linear-gradient(45deg, var(--accent-pink), var(--accent-cyan));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            font-size: 3.5rem;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            color: #b0b0b0;
-            font-size: 1.2rem;
-            margin-bottom: 50px;
-        }
-
-        .car-container {
-            margin: 50px auto;
-            position: relative;
-            width: 300px;
-            height: 200px;
-        }
-
-        .car-body {
-            width: 250px;
-            height: 100px;
-            background: linear-gradient(145deg, #8a2be2, #6a1b9a);
-            border-radius: 20px 20px 10px 10px;
-            position: relative;
-            margin: 0 auto;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 10px 30px rgba(138, 43, 226, 0.4);
-        }
-
-        .car-top {
-            width: 180px;
-            height: 70px;
-            background: linear-gradient(145deg, #ff2d95, #d40078);
-            border-radius: 15px 15px 0 0;
-            position: absolute;
-            top: -35px;
-            left: 35px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-        }
-
-        .wheel {
-            width: 40px;
-            height: 40px;
-            background: #1a1a1a;
-            border-radius: 50%;
-            position: absolute;
-            bottom: -10px;
-            border: 3px solid #333;
-            animation: wheel-rotate 3s linear infinite;
-        }
-
-        .wheel-front { left: 30px; }
-        .wheel-back { right: 30px; }
-
-        .wheel-detail {
-            width: 20px;
-            height: 20px;
-            background: #333;
-            border-radius: 50%;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .wheel-spoke {
-            width: 3px;
-            height: 15px;
-            background: #666;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform-origin: center;
-        }
-
-        .spoke-1 { transform: translate(-50%, -50%) rotate(0deg); }
-        .spoke-2 { transform: translate(-50%, -50%) rotate(45deg); }
-        .spoke-3 { transform: translate(-50%, -50%) rotate(90deg); }
-        .spoke-4 { transform: translate(-50%, -50%) rotate(135deg); }
-
-        @keyframes wheel-rotate {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .car-light {
+        .light {
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            position: absolute;
-            bottom: 25px;
-            animation: light-pulse 2s infinite;
+            display: inline-block;
         }
 
-        .light-front { 
-            left: 15px; 
-            background: #ffff00;
-            box-shadow: 0 0 20px #ffff00;
-        }
-        .light-back { 
-            right: 15px; 
+        .light-server {
             background: #ff4444;
-            box-shadow: 0 0 20px #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+            animation: pulse 2s infinite;
         }
 
-        @keyframes light-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
+        .light-car {
+            background: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+            animation: pulse 2s infinite;
         }
 
-        .road {
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, transparent, #666, transparent);
-            position: absolute;
-            bottom: 30px;
-            left: 0;
-            animation: road-move 3s linear infinite;
+        .light-server.online {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
         }
 
-        @keyframes road-move {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+        .light-car.online {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
         }
 
-        .button-container {
-            display: flex;
-            gap: 30px;
-            justify-content: center;
-            margin-top: 60px;
-            flex-wrap: wrap;
+        /* Demo list compact */
+        .demo-list-compact {
+            max-height: 180px;
+            overflow-y: auto;
+            scrollbar-width: thin;
         }
 
-        .nav-button {
-            padding: 20px 40px;
-            font-size: 1.3rem;
-            font-weight: bold;
-            border: none;
-            border-radius: 15px;
-            text-decoration: none;
+        .demo-item-compact {
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            background: rgba(255, 255, 255, 0.07);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-purple);
             transition: all 0.3s ease;
-            min-width: 200px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .demo-item-compact:hover {
+            background: rgba(255, 255, 255, 0.12);
+            transform: translateX(5px);
+        }
+
+        .demo-actions {
+            opacity: 1;
+            display: flex;
+            gap: 5px;
+        }
+
+        /* Control Grid MÁS GRANDE CON ICONOS ORIGINALES */
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 110px);
+            grid-template-rows: repeat(3, 110px);
+            gap: 12px;
+            margin: 0 auto;
+        }
+
+        .control-btn {
+            width: 110px;
+            height: 110px;
+            border-radius: 20px;
+            border: none;
+            background: linear-gradient(145deg, var(--secondary-bg), #2a2a2a);
+            color: var(--text-light);
+            font-size: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            box-shadow:
+                0 4px 15px rgba(255, 45, 149, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow:
+                0 8px 25px rgba(255, 45, 149, 0.4),
+                0 2px 10px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(145deg, var(--accent-pink), #d40078);
+        }
+
+        .control-btn:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        .control-btn i {
+            font-size: 2.5rem;
+            margin-bottom: 7px;
+        }
+
+        .control-btn small {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            position: absolute;
+            bottom: 8px;
+            color: var(--accent-cyan);
+            font-weight: bold;
+        }
+
+        /* Posiciones específicas */
+        .btn-center {
+            grid-column: 2;
+            grid-row: 2;
+            background: linear-gradient(145deg, #ff4444, #cc0000) !important;
+        }
+
+        .btn-center:hover {
+            background: linear-gradient(145deg, #ff6666, #ee0000) !important;
+        }
+
+        /* Active Key Display */
+        .active-key {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            font-family: monospace;
+            height: 50px;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            border: 1px solid rgba(0, 255, 255, 0.2);
         }
 
-        .nav-button:hover {
-            transform: translateY(-5px) scale(1.05);
-            box-shadow: 0 15px 35px rgba(255, 45, 149, 0.4);
+        /* Glass panels ajustados */
+        .glass-panel {
+            padding: 15px !important;
+            margin-bottom: 10px !important;
         }
 
-        .btn-control {
-            background: linear-gradient(145deg, var(--accent-pink), #d40078);
-            color: white;
+        /* Botones de velocidad */
+        .speed-btn {
+            padding: 6px 10px;
+            font-size: 0.85rem;
         }
 
-        .btn-monitor {
-            background: linear-gradient(145deg, var(--accent-cyan), #00b3b3);
-            color: white;
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.6;
+            }
+
+            100% {
+                opacity: 1;
+            }
         }
 
-        .status {
-            margin-top: 30px;
-            color: #b0b0b0;
-            font-size: 1rem;
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .control-grid {
+                grid-template-columns: repeat(3, 110px);
+                grid-template-rows: repeat(3, 110px);
+                gap: 12px;
+            }
+
+            .control-btn {
+                width: 110px;
+                height: 110px;
+                font-size: 2.2rem;
+            }
+
+            .control-btn i {
+                font-size: 2.2rem;
+            }
         }
 
-        .status-online {
-            color: #00ff88;
+        @media (max-width: 992px) {
+            .control-grid {
+                grid-template-columns: repeat(3, 100px);
+                grid-template-rows: repeat(3, 100px);
+                gap: 10px;
+            }
+
+            .control-btn {
+                width: 100px;
+                height: 100px;
+                font-size: 2rem;
+            }
+
+            .control-btn i {
+                font-size: 2rem;
+            }
+
+            .content-wrapper {
+                height: calc(100vh - 80px);
+                max-height: calc(100vh - 80px);
+            }
         }
 
         @media (max-width: 768px) {
-            .title {
-                font-size: 2.5rem;
+            .control-grid {
+                grid-template-columns: repeat(3, 90px);
+                grid-template-rows: repeat(3, 90px);
+                gap: 8px;
             }
-            
-            .car-container {
-                transform: scale(0.8);
+
+            .control-btn {
+                width: 90px;
+                height: 90px;
+                font-size: 1.8rem;
             }
-            
-            .button-container {
-                flex-direction: column;
-                align-items: center;
+
+            .control-btn i {
+                font-size: 1.8rem;
             }
-            
-            .nav-button {
-                width: 100%;
-                max-width: 300px;
+
+            .control-btn small {
+                font-size: 0.8rem;
+                bottom: 5px;
+            }
+
+            h1 {
+                font-size: 1.8rem !important;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .control-grid {
+                grid-template-columns: repeat(3, 85px);
+                grid-template-rows: repeat(3, 85px);
+                gap: 6px;
+            }
+
+            .control-btn {
+                width: 85px;
+                height: 85px;
+                font-size: 1.7rem;
+            }
+
+            .control-btn i {
+                font-size: 1.7rem;
             }
         }
     </style>
 </head>
-<body>
-    <div class="main-container">
-        <h1 class="title">
-            <i class="fas fa-robot"></i> iot-car-control
 
-        </h1>
-        <p class="subtitle">Johanna Morales Mateos</p>
-        
-        <div class="car-container">
-            <div class="car-body">
-                <div class="car-top"></div>
-                <div class="wheel wheel-front">
-                    <div class="wheel-detail"></div>
-                    <div class="wheel-spoke spoke-1"></div>
-                    <div class="wheel-spoke spoke-2"></div>
-                    <div class="wheel-spoke spoke-3"></div>
-                    <div class="wheel-spoke spoke-4"></div>
-                </div>
-                <div class="wheel wheel-back">
-                    <div class="wheel-detail"></div>
-                    <div class="wheel-spoke spoke-1"></div>
-                    <div class="wheel-spoke spoke-2"></div>
-                    <div class="wheel-spoke spoke-3"></div>
-                    <div class="wheel-spoke spoke-4"></div>
-                </div>
-                <div class="car-light light-front"></div>
-                <div class="car-light light-back"></div>
-            </div>
-            <div class="road"></div>
-        </div>
+<body class="no-scroll">
+    <!-- Floating Particles Background -->
+    <div class="particles-container">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
 
-        <div class="button-container">
-            <a href="control.html" class="nav-button btn-control">
-                <i class="fas fa-gamepad"></i>
-                CONTROL
-            </a>
-            <a href="monitoreo.html" class="nav-button btn-monitor">
-                <i class="fas fa-chart-line"></i>
-                MONITOREO
-            </a>
-        </div>
-
-        <div class="status">
-            <i class="fas fa-circle status-online"></i> 
-            Sistema Conectado y Listo
+    <!-- Keyboard Shortcuts Helper -->
+    <div class="keyboard-helper animate__animated animate__fadeInDown">
+        <div class="keyboard-shortcuts">
+            <span class="shortcut-key"><i class="fas fa-keyboard"></i> Controles: </span>
+            <span class="shortcut-item"><kbd>WASD</kbd> Movimiento</span>
+            <span class="shortcut-item"><kbd>ESPACIO</kbd> Detener</span>
+            <span class="shortcut-item"><kbd>M</kbd> Monitoreo</span>
+            <span class="shortcut-item"><kbd>ESC</kbd> Ayuda</span>
         </div>
     </div>
 
-    <script>
-        // Efecto de luces aleatorias para hacerlo más vivo
-        function randomizeLights() {
-            const lights = document.querySelectorAll('.car-light');
-            lights.forEach(light => {
-                const randomDelay = Math.random() * 2;
-                light.style.animationDelay = `${randomDelay}s`;
-            });
-        }
+    <div class="container-fluid py-2">
+        <!-- Header -->
+        <div class="row mb-1">
+            <div class="col text-center">
+                <h1 class="gradient-text fw-bold mb-1" style="font-size: 2rem;">
+                    <i class="fas fa-robot me-2"></i>CONTROL IoT CAR
+                </h1>
+                <div class="status-lights">
+                    <div class="status-light">
+                        <span class="light light-server" id="serverLight"></span>
+                        <span id="serverStatus">Servidor</span>
+                    </div>
+                    <div class="status-light">
+                        <span class="light light-car" id="carLight"></span>
+                        <span id="carStatus">Carro</span>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        // Inicializar cuando la página carga
-        document.addEventListener('DOMContentLoaded', function() {
-            randomizeLights();
-            console.log('🚗 IoT Carrito - Página de inicio cargada');
-        });
-    </script>
+        <!-- Botón Monitoreo -->
+        <div class="row mb-2">
+            <div class="col text-center">
+                <a href="#" class="text-decoration-none monitoring-link" id="monitoringBtn" data-bs-toggle="modal"
+                    data-bs-target="#monitoringModal">
+                    <i class="fas fa-chart-line me-1"></i>
+                    <span class="link-text">Monitoreo en Tiempo Real</span>
+                    <span class="link-arrow">→</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="row justify-content-center content-wrapper g-2">
+            <!-- Left Column - Controls -->
+            <div class="col-lg-6 h-100">
+                <div class="h-100 d-flex flex-column">
+                    <!-- Speed Control -->
+                    <div class="glass-panel mb-2">
+                        <label class="text-white small mb-2 d-block text-center">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            <span class="glowing-text">VELOCIDAD</span>
+                        </label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="velocidad" id="velBaja" value="130"
+                                autocomplete="off">
+                            <label class="btn btn-outline-success btn-sm speed-btn" for="velBaja" data-key="1">
+                                <i class="fas fa-turtle me-1"></i>Lenta
+                            </label>
+
+                            <input type="radio" class="btn-check" name="velocidad" id="velMedia" value="180"
+                                autocomplete="off" checked>
+                            <label class="btn btn-outline-warning btn-sm speed-btn active" for="velMedia" data-key="2">
+                                <i class="fas fa-walking me-1"></i>Media
+                            </label>
+
+                            <input type="radio" class="btn-check" name="velocidad" id="velAlta" value="255"
+                                autocomplete="off">
+                            <label class="btn btn-outline-danger btn-sm speed-btn" for="velAlta" data-key="3">
+                                <i class="fas fa-bolt me-1"></i>Turbo
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Direction Control Grid - CON ICONOS ORIGINALES -->
+                    <div class="glass-panel mb-2 flex-grow-1 d-flex align-items-center justify-content-center">
+                        <div class="control-grid">
+                            <!-- Fila 1: Diagonales superiores -->
+                            <button class="control-btn btn-up-left" onclick="controlManager.moverCarrito(5)"
+                                data-key="Q">
+                                <i class="fas fa-arrow-turn-up"></i>
+                                <small>Q</small>
+                            </button>
+                            <button class="control-btn btn-up" onclick="controlManager.moverCarrito(1)" data-key="W">
+                                <i class="fas fa-arrow-up"></i>
+                                <small>W</small>
+                            </button>
+                            <button class="control-btn btn-up-right" onclick="controlManager.moverCarrito(4)"
+                                data-key="E">
+                                <i class="fas fa-arrow-turn-up fa-flip-horizontal"></i>
+                                <small>E</small>
+                            </button>
+
+                            <!-- Fila 2: Laterales y stop -->
+                            <button class="control-btn btn-left" onclick="controlManager.moverCarrito(9)" data-key="A">
+                                <i class="fas fa-rotate-left"></i>
+                                <small>A</small>
+                            </button>
+                            <button class="control-btn btn-center" onclick="controlManager.detenerCarrito()"
+                                data-key="SPACE" style="background: linear-gradient(145deg, #ff4444, #cc0000);">
+                                <i class="fas fa-stop"></i>
+                                <small></small>
+                            </button>
+                            <button class="control-btn btn-right" onclick="controlManager.moverCarrito(8)" data-key="D">
+                                <i class="fas fa-rotate-right"></i>
+                                <small>D</small>
+                            </button>
+
+                            <!-- Fila 3: Diagonales inferiores -->
+                            <button class="control-btn btn-down-left" onclick="controlManager.moverCarrito(7)"
+                                data-key="Z">
+                                <i class="fas fa-arrow-turn-down"></i>
+                                <small>Z</small>
+                            </button>
+                            <button class="control-btn btn-down" onclick="controlManager.moverCarrito(2)" data-key="S">
+                                <i class="fas fa-arrow-down"></i>
+                                <small>S</small>
+                            </button>
+                            <button class="control-btn btn-down-right" onclick="controlManager.moverCarrito(6)"
+                                data-key="C">
+                                <i class="fas fa-arrow-turn-down fa-flip-horizontal"></i>
+                                <small>C</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 360° Rotations -->
+                    <div class="glass-panel mt-0" style="padding: 12px !important;">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button class="btn btn-sm btn-outline-light w-100 rotation-btn"
+                                    onclick="controlManager.moverCarrito(11)" data-key="R">
+                                    <i class="fas fa-sync fa-flip-horizontal me-1"></i> 360° Izq
+                                    <span class="key-hint">(R)</span>
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button class="btn btn-sm btn-outline-light w-100 rotation-btn"
+                                    onclick="controlManager.moverCarrito(10)" data-key="T">
+                                    <i class="fas fa-sync me-1"></i> 360° Der
+                                    <span class="key-hint">(T)</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Demos & Quick Actions -->
+            <div class="col-lg-6 h-100">
+                <div class="h-100 d-flex flex-column">
+                    <!-- Demo Sequences - CON GESTIÓN COMPLETA -->
+                    <div class="glass-panel mb-2 flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0 text-white">
+                                <i class="fas fa-magic me-2"></i>
+                                Secuencias DEMO
+                            </h6>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-light" onclick="demoManager.cargarDemos()">
+                                    <i class="fas fa-sync"></i>
+                                </button>
+                                <button class="btn btn-sm btn-info" onclick="demoManager.mostrarEditor()">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="listaDemos" class="demo-list-compact">
+                            <!-- Las secuencias se cargarán dinámicamente desde demos.js -->
+                            <div class="text-center text-muted py-3">
+                                <i class="fas fa-spinner fa-spin me-2"></i>
+                                Cargando secuencias...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions & Status -->
+                    <div class="glass-panel flex-grow-1">
+                        <!-- Quick Actions -->
+                        <div class="mb-3">
+                            <small class="text-muted mb-2 d-block">
+                                <i class="fas fa-bolt me-1"></i> Acciones Rápidas:
+                            </small>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm flex-fill demo-btn"
+                                    onclick="demoManager.ejecutarCircuitoCuadrado()"
+                                    style="background: rgba(138, 43, 226, 0.2); color: white; border: 1px solid var(--accent-purple);"
+                                    data-key="F">
+                                    <i class="fas fa-square me-1"></i> Cuadrado
+                                </button>
+                                <button class="btn btn-sm flex-fill demo-btn" onclick="demoManager.ejecutarZigZag()"
+                                    style="background: rgba(0, 255, 255, 0.2); color: white; border: 1px solid var(--accent-cyan);"
+                                    data-key="G">
+                                    <i class="fas fa-wave-square me-1"></i> Zig-Zag
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Movimientos Counter -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-muted">
+                                <i class="fas fa-running me-1"></i> Movimientos:
+                            </span>
+                            <span id="totalMovimientos" class="fw-bold"
+                                style="font-size: 1.2rem; color: var(--accent-pink);">0</span>
+                        </div>
+
+                        <!-- Active Key Display -->
+                        <div class="pt-2 border-top border-secondary">
+                            <small class="text-muted d-block mb-1">
+                                <i class="fas fa-keyboard me-1"></i> Tecla activa:
+                            </small>
+                            <div id="activeKeyDisplay" class="text-center">
+                                <div class="active-key">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demo Editor Modal - CON ICONOS ORIGINALES -->
+        <div class="modal fade" id="demoEditorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content bg-dark border border-secondary">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title text-white">
+                            <i class="fas fa-edit me-2"></i>Nueva Secuencia DEMO
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-white small">Nombre</label>
+                                <input type="text" id="demoNombre" class="form-control bg-dark text-white"
+                                    placeholder="Mi secuencia">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-white small">Descripción</label>
+                                <input type="text" id="demoDescripcion" class="form-control bg-dark text-white"
+                                    placeholder="Descripción breve">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-white small d-block">Agregar movimiento:</label>
+
+                            <!-- Fila 1: Movimientos básicos -->
+                            <div class="btn-group w-100 flex-wrap mb-2">
+                                <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(1)"
+                                    title="Adelante">
+                                    <i class="fas fa-arrow-up me-1"></i>Adelante
+                                </button>
+                                <button class="btn btn-sm btn-outline-light" onclick="demoManager.agregarMovimiento(2)"
+                                    title="Atrás">
+                                    <i class="fas fa-arrow-down me-1"></i>Atrás
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="demoManager.agregarMovimiento(3)"
+                                    title="Detener">
+                                    <i class="fas fa-stop me-1"></i>Detener
+                                </button>
+                            </div>
+
+                            <!-- Fila 2: Movimientos direccionales -->
+                            <div class="btn-group w-100 flex-wrap mb-2">
+                                <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(4)"
+                                    title="Adelante-Derecha">
+                                    <i class="fas fa-arrow-up-right me-1"></i>Adel-Der
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(5)"
+                                    title="Adelante-Izquierda">
+                                    <i class="fas fa-arrow-up-left me-1"></i>Adel-Izq
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(6)"
+                                    title="Atrás-Derecha">
+                                    <i class="fas fa-arrow-down-right me-1"></i>Atrás-Der
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" onclick="demoManager.agregarMovimiento(7)"
+                                    title="Atrás-Izquierda">
+                                    <i class="fas fa-arrow-down-left me-1"></i>Atrás-Izq
+                                </button>
+                            </div>
+
+                            <!-- Fila 3: Giros y vueltas -->
+                            <div class="btn-group w-100 flex-wrap">
+                                <button class="btn btn-sm btn-outline-warning"
+                                    onclick="demoManager.agregarMovimiento(8)" title="Giro Derecha">
+                                    <i class="fas fa-redo me-1"></i>Giro Der
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning"
+                                    onclick="demoManager.agregarMovimiento(9)" title="Giro Izquierda">
+                                    <i class="fas fa-undo me-1"></i>Giro Izq
+                                </button>
+                                <button class="btn btn-sm btn-outline-success"
+                                    onclick="demoManager.agregarMovimiento(10)" title="Vuelta 360° Derecha">
+                                    <i class="fas fa-sync me-1"></i>360° Der
+                                </button>
+                                <button class="btn btn-sm btn-outline-success"
+                                    onclick="demoManager.agregarMovimiento(11)" title="Vuelta 360° Izquierda">
+                                    <i class="fas fa-sync fa-flip-horizontal me-1"></i>360° Izq
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label text-white small">Duración por movimiento (segundos)</label>
+                                <input type="number" id="duracionMovimientoDemo" class="form-control bg-dark text-white"
+                                    value="2" min="1" max="10">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label text-white small">Pasos agregados:</label>
+                                <div id="contadorPasos" class="form-control bg-dark text-white"
+                                    style="pointer-events: none;">0 pasos</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-white small">Secuencia creada:</label>
+                            <div id="movimientosDemo" class="border rounded p-3 bg-dark bg-opacity-50"
+                                style="min-height: 80px; max-height: 150px; overflow-y: auto;">
+                                <div class="text-center text-muted py-3">Agrega movimientos usando los botones de
+                                    arriba...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" onclick="demoManager.guardarDemo()">Guardar
+                            Secuencia</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monitoring Modal -->
+        <div class="modal fade" id="monitoringModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-fullscreen-md-down">
+                <div class="modal-content bg-dark text-white border border-secondary" style="max-height: 90vh;">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title">
+                            <i class="fas fa-chart-line me-2" style="color: var(--accent-pink);"></i>
+                            Monitoreo en Tiempo Real
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body" style="overflow-y: auto; max-height: calc(90vh - 120px);">
+                        <!-- KPIs Row -->
+                        <div class="row mb-3 g-2">
+                            <div class="col-md-4">
+                                <div class="metric-card-compact text-center p-2">
+                                    <i class="fas fa-wifi fa-lg mb-1" style="color: var(--accent-cyan);"></i>
+                                    <div class="metric-value-sm" id="modalMetricEstado">Conectado</div>
+                                    <div class="metric-label-sm">Estado</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="metric-card-compact text-center p-2">
+                                    <i class="fas fa-running fa-lg mb-1" style="color: var(--accent-pink);"></i>
+                                    <div class="metric-value-sm" id="modalMetricMovimientos">0</div>
+                                    <div class="metric-label-sm">Movimientos</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="metric-card-compact text-center p-2">
+                                    <i class="fas fa-exclamation-triangle fa-lg mb-1" style="color: #ff9500;"></i>
+                                    <div class="metric-value-sm" id="modalMetricAlertas">0</div>
+                                    <div class="metric-label-sm">Alertas</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="glass-panel mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="mb-0 text-white">
+                                    <i class="fas fa-chart-bar me-2"></i>
+                                    Actividad
+                                </h6>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-light active"
+                                        onclick="modalMonitoringManager.cambiarVistaGrafico('hora')">Hora</button>
+                                    <button class="btn btn-outline-light"
+                                        onclick="modalMonitoringManager.cambiarVistaGrafico('tipo')">Tipo</button>
+                                </div>
+                            </div>
+                            <div class="movement-chart-sm">
+                                <canvas id="modalActividadChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="row g-2">
+                            <!-- Historial -->
+                            <div class="col-lg-7">
+                                <div class="glass-panel h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0 text-white">
+                                            <i class="fas fa-history me-2"></i>
+                                            Últimos 10 Movimientos
+                                        </h6>
+                                        <button class="btn btn-sm btn-link text-white p-0"
+                                            onclick="modalMonitoringManager.actualizarDatos()">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+                                    </div>
+                                    <div id="modalHistorialMovimientos" class="historial-compact">
+                                        <div class="text-center text-white-50 py-3">
+                                            <i class="fas fa-spinner fa-spin me-2"></i>
+                                            Cargando...
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Alertas de Obstáculos -->
+                            <div class="col-lg-5">
+                                <div class="glass-panel h-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0 text-white">
+                                            <i class="fas fa-bell me-2"></i>
+                                            Alertas Recientes
+                                            <span class="badge bg-danger ms-2" id="modalContadorAlertas">0</span>
+                                        </h6>
+                                    </div>
+                                    <div id="modalAlertasContainer" class="alertas-compact">
+                                        <div class="text-center text-white-50 py-3">
+                                            <i class="fas fa-check-circle me-2"></i>
+                                            Sin alertas de obstáculos
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary py-2">
+                        <small class="text-muted me-auto" id="modalInfoActualizacion">Última actualización: -</small>
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                        <button type="button" class="btn btn-sm btn-primary"
+                            onclick="modalMonitoringManager.actualizarDatos()">
+                            <i class="fas fa-sync me-1"></i>Actualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-md">
+                <div class="modal-content bg-dark border border-secondary">
+                    <div class="modal-header border-secondary py-3">
+                        <h5 class="modal-title text-white mb-0">
+                            <i class="fas fa-keyboard me-2"></i>Controles del Teclado
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <div class="key-help-grid">
+                            <div><kbd>W</kbd> <span>Arriba</span></div>
+                            <div><kbd>A</kbd> <span>Izquierda</span></div>
+                            <div><kbd>S</kbd> <span>Abajo</span></div>
+                            <div><kbd>D</kbd> <span>Derecha</span></div>
+                            <div><kbd>Q</kbd> <span>Arriba-Izq</span></div>
+                            <div><kbd>E</kbd> <span>Arriba-Der</span></div>
+                            <div><kbd>Z</kbd> <span>Abajo-Izq</span></div>
+                            <div><kbd>C</kbd> <span>Abajo-Der</span></div>
+                            <div><kbd>ESPACIO</kbd> <span>Detener</span></div>
+                            <div><kbd>R</kbd> <span>360° Izquierda</span></div>
+                            <div><kbd>T</kbd> <span>360° Derecha</span></div>
+                            <div><kbd>F</kbd> <span>Demo Cuadrado</span></div>
+                            <div><kbd>G</kbd> <span>Demo Zig-Zag</span></div>
+                            <div><kbd>M</kbd> <span>Abrir Monitoreo</span></div>
+                            <div><kbd>ESC</kbd> <span>Ver esta ayuda</span></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary py-2">
+                        <small class="text-muted">Presiona cualquier tecla para probar los controles</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add animate.css -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/demos.js"></script>
+    <script src="js/control.js"></script>
+    <script src="js/keyboard.js"></script>
+    <script src="js/modal-monitoring.js"></script>
 </body>
+
 </html>

@@ -9,16 +9,24 @@ class ControlManager {
     init() {
         this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
 
-        this.socket.on('connect', () => this.actualizarUIConexion(true));
-        this.socket.on('disconnect', () => this.actualizarUIConexion(false));
+        this.socket.on('connect', () => {
+            this.actualizarUIConexion(true);
+            this.updateServerLight(true);
+        });
+        
+        this.socket.on('disconnect', () => {
+            this.actualizarUIConexion(false);
+            this.updateServerLight(false);
+        });
 
         this.socket.on('movimiento_agregado', () => {
             setTimeout(() => this.cargarHistorialRapido(), 500);
+            this.cargarTotalMovimientos(); // Actualizar contador
         });
 
         this.socket.on('alerta_obstaculo', (data) => this.mostrarAlertaObstaculo(data));
 
-        // 🔥 ESCUCHAR EVENTOS DE DEMO
+        // ESCUCHAR EVENTOS DE DEMO
         this.socket.on('demo_progreso', (data) => {
             if (window.demoManager) {
                 window.demoManager.actualizarProgresoDemo(data);
@@ -33,19 +41,21 @@ class ControlManager {
 
         this.actualizarEstado();
         this.cargarHistorialRapido();
+        this.cargarTotalMovimientos();
         
         setInterval(() => {
             this.actualizarEstado();
             this.cargarHistorialRapido();
+            this.cargarTotalMovimientos();
         }, 4000);
     }
 
+    // FUNCIONES ORIGINALES MANTENIDAS
     getVelocidad() {
         const r = document.querySelector('input[name="velocidad"]:checked');
         return r ? parseInt(r.value) : 180;
     }
 
-    // Obtener fecha local formateada para enviar al servidor
     getLocalTimestamp() {
         const now = new Date();
         const offset = now.getTimezoneOffset() * 60000;
@@ -61,7 +71,7 @@ class ControlManager {
                     status_clave: status,
                     velocidad: this.getVelocidad(),
                     duracion_segundos: 0,
-                    timestamp_local: this.getLocalTimestamp() // <-- ENVIAMOS HORA LOCAL
+                    timestamp_local: this.getLocalTimestamp()
                 })
             });
         } catch (e) { 
@@ -90,7 +100,7 @@ class ControlManager {
         }
     }
 
-    // === HISTORIAL CORREGIDO (Muestra 5 items) ===
+    // HISTORIAL CORREGIDO (Muestra 5 items) - MANTENIDO
     async cargarHistorialRapido() {
         const cont = document.getElementById('historialMovimientos');
         if (!cont) return;
@@ -99,7 +109,6 @@ class ControlManager {
             const res = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const data = await res.json();
 
-            // CRÍTICO: Verificar éxito y que el array exista
             if (data.success && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
                 const ultimos5 = data.movimientos.slice(0, 5);
                 
@@ -108,13 +117,11 @@ class ControlManager {
                     let hora = '...';
                     if(mov.fecha_hora) {
                         try {
-                            // La fecha viene como string SQL ("YYYY-MM-DD HH:MM:SS"). Solo tomamos HH:MM
                             const timePart = String(mov.fecha_hora).split(' ')[1] || '';
                             hora = timePart.substring(0,5);
                         } catch(e) {}
                     }
 
-                    // Usamos clases de texto correctas (text-white)
                     html += `
                         <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between px-0 py-2 small">
                             <span><i class="fas fa-check me-2 text-success"></i>${mov.status_texto}</span>
@@ -129,12 +136,11 @@ class ControlManager {
             }
         } catch (e) { 
             console.error("Error cargando historial:", e);
-            cont.innerHTML = '<div class="text-center text-danger small py-2">Error de conexión al historial</div>';
+            cont.innerHTML = '<div class="text-center text-danger small py-2">Error de conexión</div>';
         }
     }
 
     mostrarAlertaObstaculo(data) {
-        // Referencias BD
         const map = { 
             1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 
             4: "Adelante-Izq-Der", 5: "Retrocede" 
@@ -151,7 +157,7 @@ class ControlManager {
         setTimeout(() => div.remove(), 3500);
     }
     
-    // 🔥 FUNCIONES QUE FALTABAN
+    // FUNCIONES DE UI MANTENIDAS
     actualizarUIConexion(online) {
         const estadoConexion = document.getElementById('estadoConexion');
         const textoConexion = document.getElementById('textoConexion');
@@ -191,8 +197,10 @@ class ControlManager {
             if (robotEstado) {
                 if (data.estado_ws_arduino === 'Conectado') {
                     robotEstado.innerHTML = '<span class="text-success fw-bold">En Línea</span>';
+                    this.updateCarLight(true);
                 } else {
                     robotEstado.innerHTML = '<span class="text-danger fw-bold">Offline</span>';
+                    this.updateCarLight(false);
                 }
             }
         } catch (e) {
@@ -200,12 +208,68 @@ class ControlManager {
             const robotEstado = document.getElementById('robotEstado');
             if (robotEstado) {
                 robotEstado.innerHTML = '<span class="text-warning fw-bold">Error</span>';
+                this.updateCarLight(false);
             }
         }
     }
 
+    // NUEVAS FUNCIONES PARA LAS LUCES
+    updateServerLight(online) {
+        const serverLight = document.getElementById('serverLight');
+        const serverStatus = document.getElementById('serverStatus');
+        
+        if (serverLight) {
+            serverLight.classList.remove('online');
+            if (online) {
+                serverLight.classList.add('online');
+            }
+        }
+        
+        if (serverStatus) {
+            serverStatus.textContent = online ? 'Servidor ✓' : 'Servidor ✗';
+            serverStatus.className = online ? 'text-success' : 'text-danger';
+        }
+    }
+
+    updateCarLight(online) {
+        const carLight = document.getElementById('carLight');
+        const carStatus = document.getElementById('carStatus');
+        
+        if (carLight) {
+            carLight.classList.remove('online');
+            if (online) {
+                carLight.classList.add('online');
+            }
+        }
+        
+        if (carStatus) {
+            carStatus.textContent = online ? 'Carro ✓' : 'Carro ✗';
+            carStatus.className = online ? 'text-success' : 'text-danger';
+        }
+    }
+
+    // FUNCIÓN NUEVA: Cargar total de movimientos
+    async cargarTotalMovimientos() {
+        try {
+            const res = await fetch(`${this.backendUrl}/api/metricas`);
+            const data = await res.json();
+            
+            const totalMov = document.getElementById('totalMovimientos');
+            if (totalMov && data.total_movimientos !== undefined) {
+                totalMov.textContent = data.total_movimientos;
+            }
+            
+            // También actualizar en el modal si está abierto
+            const modalMov = document.getElementById('modalMetricMovimientos');
+            if (modalMov) {
+                modalMov.textContent = data.total_movimientos || 0;
+            }
+        } catch (e) {
+            console.error("Error cargando total de movimientos:", e);
+        }
+    }
+
     mostrarNotificacion(msg, type) {
-        // Crear notificación temporal
         const div = document.createElement('div');
         div.className = `alert alert-${type} position-fixed`;
         div.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 300px;';
@@ -226,7 +290,6 @@ class ControlManager {
         return movimientos[id] || `Mov ${id}`;
     }
 
-    
     obtenerVelocidadSeleccionada() {
         return this.getVelocidad();
     }

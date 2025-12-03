@@ -20,11 +20,11 @@ class DemoManager {
         if (window.controlManager && typeof window.controlManager.obtenerVelocidadSeleccionada === 'function') {
             return window.controlManager.obtenerVelocidadSeleccionada();
         }
-        return 180; // Default Media
+        return 180;
     }
 
     // ============================================================
-    // 1. SECUENCIAS AUTOMÁTICAS (Botones Rápidos)
+    // 1. SECUENCIAS AUTOMÁTICAS (Botones Rápidos) - MANTENIDAS
     // ============================================================
 
     async ejecutarCircuitoCuadrado() {
@@ -69,9 +69,6 @@ class DemoManager {
         this.crearYEjecutarDemoTemporal("Zig-Zag Dinámico", movimientos);
     }
 
-    /**
-     * Crea una demo temporal en BD y la ejecuta inmediatamente
-     */
     async crearYEjecutarDemoTemporal(nombre, movimientos) {
         try {
             this.mostrarNotificacion(`Generando ${nombre}...`, 'info');
@@ -102,7 +99,7 @@ class DemoManager {
     }
 
     // ============================================================
-    // 2. EJECUCIÓN Y PROGRESO VISUAL
+    // 2. EJECUCIÓN Y PROGRESO VISUAL - MANTENIDAS
     // ============================================================
 
     async ejecutarDemo(id, nombre) {
@@ -129,7 +126,6 @@ class DemoManager {
         }
     }
 
-    // Llamado por control.js cuando llega evento Socket.IO
     actualizarProgresoDemo(data) {
         const { movimiento_actual, total_movimientos, nombre_movimiento } = data;
         
@@ -150,7 +146,6 @@ class DemoManager {
         if (textoPorcentaje) textoPorcentaje.textContent = `${Math.round(porcentaje)}%`;
     }
 
-    // Llamado por control.js al finalizar
     demoCompletada(data) {
         if (this.progresoElement) {
             const barra = this.progresoElement.querySelector('.progress-bar');
@@ -207,7 +202,7 @@ class DemoManager {
     }
 
     // ============================================================
-    // 3. EDITOR Y LISTA DE DEMOS (CRUD)
+    // 3. LISTA DE DEMOS COMPACTA (INTERFAZ ACTUALIZADA)
     // ============================================================
 
     async cargarDemos() {
@@ -227,74 +222,60 @@ class DemoManager {
                             ? JSON.parse(demo.movimientos) 
                             : demo.movimientos || []; 
                     } catch(e){ 
-                        console.error("Error parseando movimientos:", e);
                         movimientos = [];
                     }
                     
                     const duracionTotal = movimientos.reduce((acc, curr) => acc + (curr.duracion || 0), 0);
 
                     const item = document.createElement('div');
-                    item.className = 'demo-card mb-2 p-3 border rounded bg-dark bg-opacity-50';
-                    item.style.borderColor = 'rgba(255,255,255,0.1)';
+                    item.className = 'demo-item-compact';
                     
                     item.innerHTML = `
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="mb-0 text-white">${this.escapeHtml(demo.nombre_secuencia)}</h6>
-                                <small class="text-muted" style="font-size: 0.8rem;">
-                                    <i class="fas fa-layer-group me-1"></i>${movimientos.length} pasos 
-                                    <span class="mx-1">•</span> 
-                                    <i class="fas fa-stopwatch me-1"></i>~${duracionTotal}s
-                                </small>
+                        <div>
+                            <div class="fw-bold small">${this.escapeHtml(demo.nombre_secuencia)}</div>
+                            <div class="text-muted" style="font-size: 0.7rem;">
+                                ${movimientos.length} pasos • ${duracionTotal}s
                             </div>
-                            <div class="btn-group">
-                                <button class="btn btn-sm btn-primary" onclick="demoManager.ejecutarDemo(${demo.secuencia_id}, '${this.escapeHtml(demo.nombre_secuencia)}')">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="demoManager.editarDemo(${demo.secuencia_id})">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger" onclick="demoManager.eliminarDemo(${demo.secuencia_id})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
+                        </div>
+                        <div class="demo-actions">
+                            <button class="btn btn-sm btn-primary" onclick="demoManager.ejecutarDemo(${demo.secuencia_id}, '${this.escapeHtml(demo.nombre_secuencia)}')" title="Ejecutar">
+                                <i class="fas fa-play"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="demoManager.editarDemo(${demo.secuencia_id})" title="Editar">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="demoManager.eliminarDemo(${demo.secuencia_id})" title="Eliminar">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     `;
                     container.appendChild(item);
                 });
             } else {
-                container.innerHTML = '<div class="text-center text-muted py-3">No hay demos guardadas</div>';
+                container.innerHTML = '<div class="text-center text-muted py-3 small">No hay secuencias guardadas</div>';
             }
         } catch (error) {
             console.error("Error cargando demos:", error);
-            container.innerHTML = '<div class="text-center text-danger">Error cargando demos</div>';
+            container.innerHTML = '<div class="text-center text-danger small">Error cargando</div>';
         }
     }
 
-    // --- Editor ---
+    // ============================================================
+    // 4. EDITOR EN MODAL (INTERFAZ ACTUALIZADA)
+    // ============================================================
 
     mostrarEditor() {
-        const editor = document.getElementById('editorDemo');
-        if (editor) {
-            editor.style.display = 'block';
-            this.demoActual = { id: null, nombre: '', descripcion: '', movimientos: [] };
-            document.getElementById('demoNombre').value = '';
-            document.getElementById('demoDescripcion').value = '';
-            this.actualizarListaMovimientos();
-            editor.scrollIntoView({ behavior: 'smooth' });
-        }
-    }
-
-    ocultarEditor() {
-        const editor = document.getElementById('editorDemo');
-        if (editor) {
-            editor.style.display = 'none';
-        }
+        const modal = new bootstrap.Modal(document.getElementById('demoEditorModal'));
+        this.demoActual = { id: null, nombre: '', descripcion: '', movimientos: [] };
+        document.getElementById('demoNombre').value = '';
+        document.getElementById('demoDescripcion').value = '';
+        this.actualizarListaMovimientos();
+        modal.show();
     }
 
     agregarMovimiento(statusClave) {
         const duracionInput = document.getElementById('duracionMovimientoDemo');
-        const duracion = parseInt(duracionInput?.value || 3);
+        const duracion = parseInt(duracionInput?.value || 2);
         const velocidad = this.getVelocidadActual();
 
         const movimiento = {
@@ -319,7 +300,7 @@ class DemoManager {
         if (!container) return;
         
         if(this.demoActual.movimientos.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-3">Agrega movimientos...</div>';
+            container.innerHTML = '<div class="text-center text-muted py-2">Agrega movimientos...</div>';
             return;
         }
 
@@ -328,8 +309,10 @@ class DemoManager {
             const div = document.createElement('div');
             div.className = 'd-flex justify-content-between align-items-center border-bottom border-secondary py-1';
             div.innerHTML = `
-                <span class="text-white small">${idx+1}. ${mov.nombre} (${mov.duracion}s @ ${mov.velocidad})</span>
-                <button class="btn btn-sm text-danger" onclick="demoManager.eliminarMovimiento(${idx})">
+                <span class="text-white small">
+                    ${idx+1}. ${mov.nombre} (${mov.duracion}s @ ${mov.velocidad})
+                </span>
+                <button class="btn btn-sm text-danger p-0" onclick="demoManager.eliminarMovimiento(${idx})">
                     <i class="fas fa-times"></i>
                 </button>
             `;
@@ -364,7 +347,7 @@ class DemoManager {
 
             if (data.success) {
                 this.mostrarNotificacion('Demo guardada correctamente', 'success');
-                this.ocultarEditor();
+                bootstrap.Modal.getInstance(document.getElementById('demoEditorModal')).hide();
                 this.cargarDemos();
             } else {
                 this.mostrarNotificacion('Error al guardar: ' + (data.error || 'Desconocido'), 'danger');
@@ -400,11 +383,12 @@ class DemoManager {
                         movimientos: movimientos
                     };
                     
-                    document.getElementById('editorDemo').style.display = 'block';
                     document.getElementById('demoNombre').value = this.demoActual.nombre;
                     document.getElementById('demoDescripcion').value = this.demoActual.descripcion;
                     this.actualizarListaMovimientos();
-                    document.getElementById('editorDemo').scrollIntoView({ behavior: 'smooth' });
+                    
+                    const modal = new bootstrap.Modal(document.getElementById('demoEditorModal'));
+                    modal.show();
                 }
             }
         } catch(e) { 
@@ -440,7 +424,6 @@ class DemoManager {
         if (window.controlManager && typeof window.controlManager.mostrarNotificacion === 'function') {
             window.controlManager.mostrarNotificacion(msg, type);
         } else {
-            // Fallback simple
             alert(msg);
         }
     }
