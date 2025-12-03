@@ -69,11 +69,11 @@ class NotificationManager {
         // 2. Alertas de obstáculos
         this.socket.on('alerta_obstaculo', (data) => {
             const tipos = {
-                1: 'Obstáculo frontal',
-                2: 'Obstáculo lateral izquierdo', 
-                3: 'Obstáculo lateral derecho',
-                4: 'Obstáculo trasero',
-                5: 'Obstáculo múltiple'
+                        1: 'Obstáculo Adelante',
+                        2: 'Obstáculo Adelante-Izquierda',
+                        3: 'Obstáculo Adelante-Derecha',
+                        4: 'Obstáculo Adelante-Izquierda-Derecha',
+                        5: 'Obstáculo Retrocede'
             };
             const tipo = tipos[data.tipo_obstaculo] || 'Obstáculo detectado';
             

@@ -8,128 +8,164 @@ class ControlManager {
     }
 
     init() {
-        this.socket = io(this.backendUrl, { transports: ['websocket', 'polling'] });
-
-        this.socket.on('connect', () => {
-            this.actualizarUIConexion(true);
-            this.updateServerLight(true);
-            
-            // Notificar conexión exitosa
-            if (window.notificationManager) {
-                window.notificationManager.showSuccess('🔗 Conectado', 'Conexión WebSocket establecida con el servidor');
-            }
-        });
+        console.log('🚀 Iniciando ControlManager...');
         
-        this.socket.on('disconnect', () => {
-            this.actualizarUIConexion(false);
-            this.updateServerLight(false);
+        // Intentar conectar al WebSocket
+        try {
+            this.socket = io(this.backendUrl, { 
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
             
-            // Notificar desconexión
-            if (window.notificationManager) {
-                window.notificationManager.showWarning('🔌 Desconectado', 'Conexión WebSocket perdida');
-            }
-        });
+            console.log('📡 WebSocket configurado en:', this.backendUrl);
+        } catch (error) {
+            console.error('❌ Error configurando WebSocket:', error);
+            this.mostrarNotificacion('Error configurando conexión WebSocket', 'danger');
+        }
 
-        this.socket.on('movimiento_agregado', (data) => {
-            setTimeout(() => this.cargarHistorialRapido(), 500);
-            this.cargarTotalMovimientos(); // Actualizar contador
-            
-            // Notificar movimiento registrado en BD
-            if (window.notificationManager) {
-                const movimiento = this.obtenerNombreMovimiento(data.status_clave);
-                window.notificationManager.showSuccess(
-                    '✅ Movimiento Registrado', 
-                    `${movimiento} guardado en historial`
-                );
-            }
-        });
-
-        this.socket.on('alerta_obstaculo', (data) => {
-            this.mostrarAlertaObstaculo(data);
-            
-            // Notificar alerta de obstáculo
-            if (window.notificationManager) {
-                const tipos = {
-                    1: 'Obstáculo frontal',
-                    2: 'Obstáculo lateral izquierdo',
-                    3: 'Obstáculo lateral derecho',
-                    4: 'Obstáculo trasero',
-                    5: 'Obstáculo múltiple'
-                };
-                const tipo = tipos[data.tipo_obstaculo] || 'Obstáculo detectado';
+        // Eventos del WebSocket
+        if (this.socket) {
+            this.socket.on('connect', () => {
+                console.log('✅ Conectado al servidor WebSocket');
+                this.actualizarUIConexion(true);
+                this.updateServerLight(true);
                 
-                window.notificationManager.showDanger(
-                    '⚠️ ¡Alerta de Obstáculo!',
-                    `${tipo} a ${data.distancia || '?'}cm`
-                );
-            }
-        });
-
-        // ESCUCHAR EVENTOS DE DEMO
-        this.socket.on('demo_progreso', (data) => {
-            if (window.demoManager) {
-                window.demoManager.actualizarProgresoDemo(data);
-            }
+                // Notificar conexión exitosa
+                setTimeout(() => {
+                    if (window.notificationManager) {
+                        window.notificationManager.showSuccess('🔗 Conectado', 'Conexión establecida con el servidor');
+                    }
+                }, 500);
+            });
             
-            // Notificar progreso de demo
-            if (window.notificationManager) {
-                window.notificationManager.showInfo(
-                    `↻ Demo Progreso (${data.movimiento_actual}/${data.total_movimientos})`,
-                    `Ejecutando: ${data.nombre_movimiento}`
-                );
-            }
-        });
-
-        this.socket.on('demo_completada', (data) => {
-            if (window.demoManager) {
-                window.demoManager.demoCompletada(data);
-            }
+            this.socket.on('disconnect', (reason) => {
+                console.log('❌ Desconectado del servidor WebSocket:', reason);
+                this.actualizarUIConexion(false);
+                this.updateServerLight(false);
+                
+                // Notificar desconexión
+                if (window.notificationManager) {
+                    window.notificationManager.showWarning('🔌 Desconectado', 'Conexión WebSocket perdida');
+                }
+            });
             
-            // Notificar demo completada
-            if (window.notificationManager) {
-                window.notificationManager.showSuccess(
-                    '🎉 Demo Completada',
-                    `"${data.nombre}" finalizada exitosamente`
-                );
-            }
-        });
+            this.socket.on('connect_error', (error) => {
+                console.error('❌ Error de conexión WebSocket:', error);
+                if (window.notificationManager) {
+                    window.notificationManager.showDanger('❌ Error de Conexión', 'No se puede conectar al servidor');
+                }
+            });
 
-        this.socket.on('demo_creada', (data) => {
-            // Notificar demo creada
-            if (window.notificationManager) {
-                window.notificationManager.showSuccess(
-                    '📁 Demo Creada',
-                    `"${data.nombre}" guardada correctamente`
-                );
-            }
-        });
+            // Escuchar eventos del servidor
+            this.socket.on('movimiento_agregado', (data) => {
+                console.log('📦 Evento movimiento_agregado recibido:', data);
+                setTimeout(() => this.cargarHistorialRapido(), 500);
+                this.cargarTotalMovimientos();
+                
+                // Notificar movimiento registrado en BD
+                if (window.notificationManager) {
+                    const movimiento = this.obtenerNombreMovimiento(data.status_clave);
+                    window.notificationManager.showSuccess(
+                        '✅ Movimiento Ejecutado', 
+                        `${movimiento} completado correctamente`
+                    );
+                }
+            });
 
-        this.socket.on('demo_eliminada', () => {
-            // Notificar demo eliminada
-            if (window.notificationManager) {
-                window.notificationManager.showWarning(
-                    '🗑️ Demo Eliminada',
-                    'Secuencia eliminada del sistema'
-                );
-            }
-        });
+            this.socket.on('alerta_obstaculo', (data) => {
+                console.log('🚨 Alerta de obstáculo recibida:', data);
+                this.mostrarAlertaObstaculo(data);
+
+                // Notificar alerta de obstáculo
+                if (window.notificationManager) {
+                    // 🚨 CORREGIR EL MAPEO - USAR EL DE TU BD
+                    const tipos = {
+                        1: 'Obstáculo Adelante',
+                        2: 'Obstáculo Adelante-Izquierda',
+                        3: 'Obstáculo Adelante-Derecha',
+                        4: 'Obstáculo Adelante-Izquierda-Derecha',
+                        5: 'Obstáculo Retrocede'
+                    };
+                    const tipo = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
+
+                    window.notificationManager.showDanger(
+                        '⚠️ ¡Alerta de Obstáculo!',
+                        `${tipo} a ${data.distancia || '?'}cm - ${data.accion || 'Evasión automática'}`
+                    );
+                }
+            });
+
+            // Eventos de demo
+            this.socket.on('demo_progreso', (data) => {
+                console.log('🔄 Progreso de demo:', data);
+                if (window.demoManager) {
+                    window.demoManager.actualizarProgresoDemo(data);
+                }
+            });
+
+            this.socket.on('demo_completada', (data) => {
+                console.log('✅ Demo completada:', data);
+                if (window.demoManager) {
+                    window.demoManager.demoCompletada(data);
+                }
+                
+                // Notificar demo completada
+                if (window.notificationManager) {
+                    window.notificationManager.showSuccess(
+                        '🎉 Demo Completada',
+                        `"${data.nombre}" finalizada exitosamente`
+                    );
+                }
+            });
+
+            this.socket.on('demo_creada', (data) => {
+                console.log('📁 Demo creada:', data);
+                // Notificar demo creada
+                if (window.notificationManager) {
+                    window.notificationManager.showSuccess(
+                        '📁 Demo Creada',
+                        `"${data.nombre}" guardada correctamente`
+                    );
+                }
+            });
+
+            this.socket.on('demo_eliminada', (data) => {
+                console.log('🗑️ Demo eliminada:', data);
+                // Notificar demo eliminada
+                if (window.notificationManager) {
+                    window.notificationManager.showWarning(
+                        '🗑️ Demo Eliminada',
+                        'Secuencia eliminada del sistema'
+                    );
+                }
+            });
+        }
 
         // Inicializar notification manager
         setTimeout(() => {
             if (window.notificationManager) {
                 this.notificationManager = window.notificationManager;
+                console.log('🔔 NotificationManager inicializado');
+            } else {
+                console.warn('⚠️ NotificationManager no encontrado');
             }
-        }, 500);
+        }, 1000);
 
+        // Cargar datos iniciales
         this.actualizarEstado();
         this.cargarHistorialRapido();
         this.cargarTotalMovimientos();
         
+        // Actualizar periódicamente
         setInterval(() => {
             this.actualizarEstado();
             this.cargarHistorialRapido();
             this.cargarTotalMovimientos();
         }, 4000);
+        
+        console.log('✅ ControlManager inicializado correctamente');
     }
 
     // FUNCIONES ORIGINALES MANTENIDAS
@@ -145,35 +181,52 @@ class ControlManager {
     }
 
     async moverCarrito(status) {
+        const movimiento = this.obtenerNombreMovimiento(status);
+        const velocidad = this.getVelocidad();
+        
+        console.log(`🚀 Intentando mover carrito: ${movimiento} (status: ${status}, velocidad: ${velocidad})`);
+        
         try {
             // Notificar inmediatamente al usuario
             if (window.notificationManager) {
-                const movimiento = this.obtenerNombreMovimiento(status);
-                const velocidad = this.getVelocidad();
                 window.notificationManager.showInfo(
-                    '🚀 Enviando Movimiento',
+                    '🚀 Enviando Comando',
                     `${movimiento} (Vel: ${velocidad})...`
                 );
             }
             
-            await fetch(`${this.backendUrl}/api/movimiento`, {
+            const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     status_clave: status,
-                    velocidad: this.getVelocidad(),
+                    velocidad: velocidad,
                     duracion_segundos: 0,
                     timestamp_local: this.getLocalTimestamp()
                 })
             });
             
-            // Notificación de éxito ya se maneja por WebSocket (movimiento_agregado)
-        } catch (e) { 
-            console.error("Error moviendo carrito:", e);
+            const data = await response.json();
+            console.log('📡 Respuesta del servidor:', data);
             
-            // Notificar error
+            if (data.success) {
+                // Notificación de éxito se manejará por WebSocket (movimiento_agregado)
+                console.log('✅ Comando enviado exitosamente');
+            } else {
+                // Notificar error del servidor
+                if (window.notificationManager) {
+                    window.notificationManager.showDanger(
+                        '❌ Error del Servidor',
+                        `${movimiento} - El servidor reportó un error`
+                    );
+                }
+            }
+            
+        } catch (e) { 
+            console.error("❌ Error moviendo carrito:", e);
+            
+            // Notificar error de conexión
             if (window.notificationManager) {
-                const movimiento = this.obtenerNombreMovimiento(status);
                 window.notificationManager.showDanger(
                     '❌ Error de Conexión',
                     `${movimiento} - No se pudo conectar con el servidor`
@@ -183,23 +236,32 @@ class ControlManager {
     }
 
     async detenerCarrito() {
+        console.log('⏹️ Intentando detener carrito...');
+        
         try { 
             // Notificar
             if (window.notificationManager) {
                 window.notificationManager.showWarning('⏹️ Deteniendo', 'Enviando comando de detención...');
             }
             
-            await fetch(`${this.backendUrl}/api/detener`, { method: 'POST' }); 
+            const response = await fetch(`${this.backendUrl}/api/detener`, { 
+                method: 'POST' 
+            });
             
-            // Notificar éxito de detención
-            setTimeout(() => {
-                if (window.notificationManager) {
-                    window.notificationManager.showSuccess('✅ Robot Detenido', 'Movimiento interrumpido correctamente');
-                }
-            }, 300);
+            const data = await response.json();
+            console.log('📡 Respuesta de detención:', data);
+            
+            if (data.success) {
+                // Notificar éxito de detención
+                setTimeout(() => {
+                    if (window.notificationManager) {
+                        window.notificationManager.showSuccess('✅ Robot Detenido', 'Movimiento interrumpido correctamente');
+                    }
+                }, 300);
+            }
             
         } catch(e){
-            console.error("Error deteniendo carrito:", e);
+            console.error("❌ Error deteniendo carrito:", e);
             
             if (window.notificationManager) {
                 window.notificationManager.showDanger('❌ Error', 'No se pudo detener el carro');
@@ -208,51 +270,60 @@ class ControlManager {
     }
 
     async simularObstaculo() {
+        console.log('⚠️ Simulando obstáculo...');
+        
         try {
             // Notificar simulación
             if (window.notificationManager) {
                 window.notificationManager.showWarning('⚠️ Simulando Obstáculo', 'Enviando señal de prueba...');
             }
             
-            await fetch(`${this.backendUrl}/api/obstaculo`, {
+            const response = await fetch(`${this.backendUrl}/api/obstaculo`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ status_clave: 1, dispositivo_id: 1 })
             });
             
+            const data = await response.json();
+            console.log('📡 Respuesta de simulación:', data);
+            
         } catch(e) {
-            console.error("Error simulando obstáculo:", e);
+            console.error("❌ Error simulando obstáculo:", e);
             if (window.notificationManager) {
                 window.notificationManager.showDanger('❌ Error', 'No se pudo simular obstáculo');
             }
         }
     }
 
-    // HISTORIAL CORREGIDO (Muestra 5 items) - MANTENIDO
+    // HISTORIAL CORREGIDO
     async cargarHistorialRapido() {
         const cont = document.getElementById('historialMovimientos');
         if (!cont) return;
 
         try {
+            console.log('📋 Cargando historial...');
             const res = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const data = await res.json();
+            console.log('📊 Datos historial recibidos:', data);
 
             if (data.success && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
                 const ultimos5 = data.movimientos.slice(0, 5);
                 
                 let html = '<ul class="list-group list-group-flush">';
                 ultimos5.forEach(mov => {
-                    let hora = '...';
+                    let hora = '--:--';
                     if(mov.fecha_hora) {
                         try {
                             const timePart = String(mov.fecha_hora).split(' ')[1] || '';
                             hora = timePart.substring(0,5);
-                        } catch(e) {}
+                        } catch(e) {
+                            console.log('Error parseando hora:', e);
+                        }
                     }
 
                     html += `
                         <li class="list-group-item bg-transparent text-white border-secondary d-flex justify-content-between px-0 py-2 small">
-                            <span><i class="fas fa-check me-2 text-success"></i>${mov.status_texto}</span>
+                            <span><i class="fas fa-check me-2 text-success"></i>${mov.status_texto || 'Movimiento'}</span>
                             <span class="text-white-50" style="font-family:monospace">${hora}</span>
                         </li>
                     `;
@@ -263,7 +334,7 @@ class ControlManager {
                 cont.innerHTML = '<div class="text-center text-muted small py-2">Sin movimientos registrados</div>';
             }
         } catch (e) { 
-            console.error("Error cargando historial:", e);
+            console.error("❌ Error cargando historial:", e);
             cont.innerHTML = '<div class="text-center text-danger small py-2">Error de conexión</div>';
         }
     }
@@ -273,23 +344,29 @@ class ControlManager {
             1: "Adelante", 2: "Adelante-Izquierda", 3: "Adelante-Derecha", 
             4: "Adelante-Izq-Der", 5: "Retrocede" 
         };
-        const txt = map[data.tipo_obstaculo] || "Obstáculo";
+        const txt = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
+        
+        console.log(`🚨 Mostrando alerta visual: ${txt}`);
         
         const div = document.createElement('div');
         div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(220,20,60,0.98);color:white;padding:30px;border-radius:15px;z-index:11000;text-align:center;width:320px;border:2px solid white;animation:pulse 0.5s infinite alternate;';
-        div.innerHTML = `<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h3>¡OBSTÁCULO!</h3><div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">${txt}</div><small class="d-block">Acción: ${data.accion}</small>`;
+        div.innerHTML = `<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h3>¡OBSTÁCULO!</h3><div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">${txt}</div><small class="d-block">Acción: ${data.accion || 'Robot detenido'}</small>`;
         document.body.appendChild(div);
         try { 
             new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play(); 
-        } catch(e){}
+        } catch(e){
+            console.log('No se pudo reproducir sonido');
+        }
         setTimeout(() => div.remove(), 3500);
     }
     
-    // FUNCIONES DE UI MANTENIDAS
+    // FUNCIONES DE UI
     actualizarUIConexion(online) {
         const estadoConexion = document.getElementById('estadoConexion');
         const textoConexion = document.getElementById('textoConexion');
         const statusIndicator = document.querySelector('.status-indicator');
+        
+        console.log(`📡 Actualizando UI conexión: ${online ? 'Conectado' : 'Desconectado'}`);
         
         if (online) {
             if (estadoConexion) {
@@ -318,25 +395,30 @@ class ControlManager {
 
     async actualizarEstado() {
         try {
+            console.log('📊 Actualizando estado...');
             const res = await fetch(`${this.backendUrl}/api/estado-actual`);
             const data = await res.json();
+            console.log('📡 Datos estado recibidos:', data);
             
             const robotEstado = document.getElementById('robotEstado');
             if (robotEstado) {
                 if (data.estado_ws_arduino === 'Conectado') {
                     robotEstado.innerHTML = '<span class="text-success fw-bold">En Línea</span>';
                     this.updateCarLight(true);
+                    console.log('✅ Carro CONECTADO - Luz verde');
                 } else {
                     robotEstado.innerHTML = '<span class="text-danger fw-bold">Offline</span>';
                     this.updateCarLight(false);
+                    console.log('❌ Carro DESCONECTADO - Luz roja');
                 }
             }
         } catch (e) {
-            console.error("Error actualizando estado:", e);
+            console.error("❌ Error actualizando estado:", e);
             const robotEstado = document.getElementById('robotEstado');
             if (robotEstado) {
                 robotEstado.innerHTML = '<span class="text-warning fw-bold">Error</span>';
                 this.updateCarLight(false);
+                console.log('⚠️ Error obteniendo estado - Luz roja');
             }
         }
     }
@@ -345,6 +427,8 @@ class ControlManager {
     updateServerLight(online) {
         const serverLight = document.getElementById('serverLight');
         const serverStatus = document.getElementById('serverStatus');
+        
+        console.log(`💡 Actualizando luz servidor: ${online ? 'Verde' : 'Rojo'}`);
         
         if (serverLight) {
             serverLight.classList.remove('online');
@@ -363,6 +447,8 @@ class ControlManager {
         const carLight = document.getElementById('carLight');
         const carStatus = document.getElementById('carStatus');
         
+        console.log(`🚗 Actualizando luz carro: ${online ? 'Verde' : 'Rojo'}`);
+        
         if (carLight) {
             carLight.classList.remove('online');
             if (online) {
@@ -379,8 +465,10 @@ class ControlManager {
     // FUNCIÓN NUEVA: Cargar total de movimientos
     async cargarTotalMovimientos() {
         try {
+            console.log('📈 Cargando total de movimientos...');
             const res = await fetch(`${this.backendUrl}/api/metricas`);
             const data = await res.json();
+            console.log('📊 Total movimientos:', data.total_movimientos);
             
             const totalMov = document.getElementById('totalMovimientos');
             if (totalMov && data.total_movimientos !== undefined) {
@@ -393,11 +481,26 @@ class ControlManager {
                 modalMov.textContent = data.total_movimientos || 0;
             }
         } catch (e) {
-            console.error("Error cargando total de movimientos:", e);
+            console.error("❌ Error cargando total de movimientos:", e);
         }
     }
 
     mostrarNotificacion(msg, type) {
+        console.log(`🔔 Mostrando notificación: ${type} - ${msg}`);
+        
+        // Usar el nuevo sistema si está disponible
+        if (window.notificationManager) {
+            const methodName = `show${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            if (typeof window.notificationManager[methodName] === 'function') {
+                const title = type === 'success' ? '✅ Éxito' : 
+                             type === 'danger' ? '❌ Error' : 
+                             type === 'warning' ? '⚠️ Advertencia' : 'ℹ️ Información';
+                window.notificationManager[methodName](title, msg);
+                return;
+            }
+        }
+        
+        // Fallback al sistema antiguo
         const div = document.createElement('div');
         div.className = `alert alert-${type} position-fixed`;
         div.style.cssText = 'top: 20px; right: 20px; z-index: 10000; min-width: 300px;';

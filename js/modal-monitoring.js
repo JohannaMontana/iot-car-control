@@ -211,50 +211,64 @@ class ModalMonitoringManager {
     }
 
     renderizarListaAlertas(alertas) {
-        const container = document.getElementById('modalAlertasContainer');
-        const counter = document.getElementById('modalContadorAlertas');
+    const container = document.getElementById('modalAlertasContainer');
+    const counter = document.getElementById('modalContadorAlertas');
 
-        if (counter) counter.textContent = alertas ? alertas.length : 0;
+    if (counter) counter.textContent = alertas ? alertas.length : 0;
 
-        if (!container) return;
-        if (!alertas || alertas.length === 0) {
-            container.innerHTML = '<div class="text-center text-white-50 py-4">Sin alertas</div>';
-            return;
+    if (!container) return;
+    if (!alertas || alertas.length === 0) {
+        container.innerHTML = '<div class="text-center text-white-50 py-4">Sin alertas</div>';
+        return;
+    }
+
+    // Mapa de tipos de obstáculo
+    const mapaBD = {
+        1: "Adelante",
+        2: "Adelante-Izquierda", 
+        3: "Adelante-Derecha",
+        4: "Adelante-Izquierda-Derecha",
+        5: "Retrocede"
+    };
+
+    let html = '';
+    alertas.forEach((a, index) => {
+        let fecha = '';
+        if (a.fecha_hora) {
+            // Intentar diferentes formatos de fecha
+            try {
+                if (typeof a.fecha_hora === 'string') {
+                    const dateStr = a.fecha_hora.includes('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
+                    const d = new Date(dateStr);
+                    if (!isNaN(d.getTime())) {
+                        fecha = d.toLocaleTimeString('es-MX', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+                    }
+                }
+            } catch(e) {
+                console.log('Error formateando fecha:', e);
+            }
         }
 
-        const mapaBD = {
-            1: "Adelante",
-            2: "Adelante-Izquierda",
-            3: "Adelante-Derecha",
-            4: "Adelante-Izquierda-Derecha",
-            5: "Retrocede"
-        };
+        const nombre = mapaBD[a.status_clave] || a.status_texto || `Alerta ${index + 1}`;
+        const grave = (a.status_clave === 1 || a.status_clave === 5);
 
-        let html = '';
-        alertas.forEach(a => {
-            let fecha = '';
-            if (a.fecha_hora) {
-                const raw = a.fecha_hora.endsWith('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
-                const d = new Date(raw);
-                if (!isNaN(d.getTime())) fecha = d.toLocaleTimeString();
-            }
-
-            const nombre = mapaBD[a.status_clave] || a.status_texto || "Desconocido";
-            const grave = (a.status_clave === 1 || a.status_clave === 5);
-
-            html += `
-                <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center border-0" style="background: ${grave ? 'rgba(220,53,69,0.2)' : 'rgba(255,193,7,0.2)'}; color: white;">
-                    <div>
-                        <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
-                        <strong>${nombre}</strong>
-                        <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
-                    </div>
-                    <span class="text-white-50" style="font-size: 0.7rem;">${fecha}</span>
+        html += `
+            <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center border-0" style="background: ${grave ? 'rgba(220,53,69,0.2)' : 'rgba(255,193,7,0.2)'}; color: white;">
+                <div>
+                    <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
+                    <strong>${nombre}</strong>
+                    <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
                 </div>
-            `;
-        });
-        container.innerHTML = html;
-    }
+                <span class="text-white-50" style="font-size: 0.7rem;">${fecha || '--:--'}</span>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
 
     actualizarKPIs(data) {
         const set = (id, v) => { 
