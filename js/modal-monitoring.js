@@ -58,7 +58,11 @@ class ModalMonitoringManager {
         });
 
         this.socket.on('movimiento_agregado', () => this.actualizarDatos());
-        this.socket.on('alerta_obstaculo', () => this.actualizarDatos());
+        this.socket.on('alerta_obstaculo', () => {
+            console.log('🚨 Evento alerta_obstaculo recibido en modal');
+            // Forzar actualización inmediata de alertas
+            this.cargarAlertas();
+        });
     }
 
     async actualizarDatos() {
@@ -74,9 +78,6 @@ class ModalMonitoringManager {
             this.estadoApp.ultimaActualizacion = new Date();
             const infoUpd = document.getElementById('modalInfoActualizacion');
             if (infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
-
-            // Actualizar también las estadísticas rápidas en el panel principal
-            this.actualizarQuickStats();
 
         } catch (e) { 
             console.error("Error actualizando datos del modal:", e); 
@@ -95,54 +96,100 @@ class ModalMonitoringManager {
         }
     }
 
-async cargarAlertas() {
+    async cargarAlertas() {
     try {
-        console.log('🔔 Cargando alertas...');
+        console.log('🔔 Cargando alertas desde API...');
         const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
         const dataAlert = await resAlert.json();
         
-        console.log('📊 Datos alertas recibidos:', dataAlert);
+        console.log('📊 Respuesta API /alertas:', dataAlert);
         
-        // CORREGIDO: Asegurar que las alertas sean un array
-        const alertas = dataAlert.alertas || [];
+        // 🚨 CORRECCIÓN CRÍTICA: Manejar diferentes formatos de respuesta
+        let alertas = [];
         
-        // 🚨 DEBUG: Mostrar en consola
-        console.log(`📈 Total alertas encontradas: ${alertas.length}`);
-        console.log('📋 Lista de alertas:', alertas);
-        
-        const counter = document.getElementById('modalContadorAlertas');
-        if (counter) {
-            counter.textContent = alertas.length;
-            counter.style.display = alertas.length > 0 ? 'inline-block' : 'none';
-            console.log(`✅ Contador actualizado: ${alertas.length}`);
-        }
-        
-        // También actualizar en KPIs (ESTO ES LO QUE FALTA)
-        const kpiAlertas = document.getElementById('modalMetricAlertas');
-        if (kpiAlertas) {
-            kpiAlertas.textContent = alertas.length;
-            console.log(`✅ KPI actualizado: ${alertas.length}`);
-        }
-        
-        // Actualizar también en el endpoint de estado
-        this.actualizarKPIs({
-            estadisticas: {
-                alertas_activas: alertas.length,
-                total_movimientos: 0 // Esto se actualizará en otro lugar
+        if (Array.isArray(dataAlert)) {
+            // Si la respuesta es directamente un array
+            alertas = dataAlert;
+            console.log('✅ Alertas como array directo:', alertas.length);
+        } else if (dataAlert && Array.isArray(dataAlert.alertas)) {
+            // Si la respuesta tiene propiedad .alertas
+            alertas = dataAlert.alertas;
+            console.log('✅ Alertas en propiedad .alertas:', alertas.length);
+        } else if (dataAlert && dataAlert.alertas === undefined) {
+            // Si la respuesta es un objeto pero sin .alertas
+            console.warn('⚠️ Respuesta inesperada, asumiendo estructura:', dataAlert);
+            // Intentar convertir a array
+            if (typeof dataAlert === 'object') {
+                alertas = [dataAlert];
             }
-        });
+        }
         
+        console.log(`📈 Total alertas procesadas: ${alertas.length}`);
+        
+        if (alertas.length > 0) {
+            console.log('📋 Primeras 2 alertas:', alertas.slice(0, 2));
+        }
+        
+        // ACTUALIZAR CONTADORES (ESTO ES LO QUE FALTA)
+        this.actualizarContadoresAlertas(alertas.length);
+        
+        // Renderizar lista
         this.renderizarListaAlertas(alertas);
+        
     } catch (e) {
         console.error("❌ Error cargando alertas:", e);
+        // Poner en 0 si hay error
+        this.actualizarContadoresAlertas(0);
     }
 }
+
+    // 🆕 NUEVA FUNCIÓN PARA ACTUALIZAR CONTADORES
+    actualizarContadoresAlertas(count) {
+        console.log(`🔄 Actualizando contador de alertas: ${count}`);
+        
+        // 1. Actualizar en el modal (KPI)
+        const modalMetricAlertas = document.getElementById('modalMetricAlertas');
+        if (modalMetricAlertas) {
+            modalMetricAlertas.textContent = count;
+            console.log(`✅ modalMetricAlertas = ${count}`);
+        }
+        
+        // 2. Actualizar badge del modal
+        const modalContadorAlertas = document.getElementById('modalContadorAlertas');
+        if (modalContadorAlertas) {
+            modalContadorAlertas.textContent = count;
+            modalContadorAlertas.style.display = count > 0 ? 'inline-block' : 'none';
+            console.log(`✅ modalContadorAlertas = ${count}`);
+        }
+        
+        // 3. Actualizar en el panel principal (si existe)
+        const totalAlertas = document.getElementById('totalAlertas');
+        if (totalAlertas) {
+            totalAlertas.textContent = count;
+            console.log(`✅ totalAlertas = ${count}`);
+        }
+    }
 
     async cargarEstadoActual() {
         try {
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
-            this.actualizarKPIs(dataEstado);
+            
+            // Solo actualizar movimientos desde aquí
+            const modalMetricMovimientos = document.getElementById('modalMetricMovimientos');
+            if (modalMetricMovimientos && dataEstado.estadisticas) {
+                modalMetricMovimientos.textContent = dataEstado.estadisticas.total_movimientos || 0;
+            }
+            
+            // Estado de conexión
+            const modalMetricEstado = document.getElementById('modalMetricEstado');
+            if (modalMetricEstado) {
+                const on = dataEstado.estado_ws_arduino === 'Conectado';
+                modalMetricEstado.innerHTML = on ? 
+                    '<span class="text-success fw-bold">En Línea</span>' : 
+                    '<span class="text-danger fw-bold">Offline</span>';
+            }
+            
         } catch (e) {
             console.error("Error cargando estado:", e);
         }
@@ -242,109 +289,65 @@ async cargarAlertas() {
     }
 
     renderizarListaAlertas(alertas) {
-    const container = document.getElementById('modalAlertasContainer');
-    const counter = document.getElementById('modalContadorAlertas');
-
-    if (counter) counter.textContent = alertas ? alertas.length : 0;
-
-    if (!container) return;
-    if (!alertas || alertas.length === 0) {
-        container.innerHTML = '<div class="text-center text-white-50 py-4">Sin alertas</div>';
-        return;
-    }
-
-    // Mapa de tipos de obstáculo
-    const mapaBD = {
-        1: "Adelante",
-        2: "Adelante-Izquierda", 
-        3: "Adelante-Derecha",
-        4: "Adelante-Izquierda-Derecha",
-        5: "Retrocede"
-    };
-
-    let html = '';
-    alertas.forEach((a, index) => {
-        let fecha = '';
-        if (a.fecha_hora) {
-            // Intentar diferentes formatos de fecha
-            try {
-                if (typeof a.fecha_hora === 'string') {
-                    const dateStr = a.fecha_hora.includes('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
-                    const d = new Date(dateStr);
-                    if (!isNaN(d.getTime())) {
-                        fecha = d.toLocaleTimeString('es-MX', { 
-                            hour: '2-digit', 
-                            minute: '2-digit',
-                            second: '2-digit'
-                        });
-                    }
-                }
-            } catch(e) {
-                console.log('Error formateando fecha:', e);
-            }
+        const container = document.getElementById('modalAlertasContainer');
+        if (!container) return;
+        
+        if (!alertas || alertas.length === 0) {
+            container.innerHTML = '<div class="text-center text-white-50 py-4"><i class="fas fa-check-circle me-2"></i>Sin alertas de obstáculos</div>';
+            return;
         }
 
-        const nombre = mapaBD[a.status_clave] || a.status_texto || `Alerta ${index + 1}`;
-        const grave = (a.status_clave === 1 || a.status_clave === 5);
-
-        html += `
-            <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center border-0" style="background: ${grave ? 'rgba(220,53,69,0.2)' : 'rgba(255,193,7,0.2)'}; color: white;">
-                <div>
-                    <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
-                    <strong>${nombre}</strong>
-                    <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
-                </div>
-                <span class="text-white-50" style="font-size: 0.7rem;">${fecha || '--:--'}</span>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-}
-
-    actualizarKPIs(data) {
-    console.log('📊 Actualizando KPIs con datos:', data);
-    
-    const set = (id, v) => { 
-        const el = document.getElementById(id); 
-        if (el) {
-            el.textContent = v; 
-            console.log(`✅ KPI ${id} = ${v}`);
-        }
-    };
-    
-    // Movimientos
-    set('modalMetricMovimientos', data.estadisticas?.total_movimientos || 0);
-    
-    // 🚨 CORREGIDO: Usar alertas_activas o contar alertas manualmente
-    const alertasCount = data.estadisticas?.alertas_activas || 0;
-    set('modalMetricAlertas', alertasCount);
-    
-    // Estado de conexión
-    const elSt = document.getElementById('modalMetricEstado');
-    if (elSt) {
-        const on = data.estado_ws_arduino === 'Conectado';
-        elSt.innerHTML = on ? 
-            '<span class="text-success fw-bold">En Línea</span>' : 
-            '<span class="text-danger fw-bold">Offline</span>';
-    }
-}
-
-    actualizarQuickStats(data) {
-        // Actualizar estadísticas rápidas en el panel principal
-        const setQuick = (id, v) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = v;
+        // Mapa de tipos de obstáculo (de tu BD)
+        const mapaBD = {
+            1: "Adelante",
+            2: "Adelante-Izquierda", 
+            3: "Adelante-Derecha",
+            4: "Adelante-Izquierda-Derecha",
+            5: "Retrocede"
         };
 
-        if (data) {
-            setQuick('quickMovimientos', data.estadisticas?.total_movimientos || 0);
-            setQuick('quickAlertas', data.estadisticas?.alertas_activas || 0);
-            
-            const onlineStatus = data.estado_ws_arduino === 'Conectado' ? 
-                '<span class="text-success">✓</span>' : 
-                '<span class="text-danger">✗</span>';
-            setQuick('quickOnline', onlineStatus);
-        }
+        let html = '';
+        alertas.forEach((a, index) => {
+            let fecha = '';
+            if (a.fecha_hora) {
+                try {
+                    if (typeof a.fecha_hora === 'string') {
+                        const dateStr = a.fecha_hora.includes('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
+                        const d = new Date(dateStr);
+                        if (!isNaN(d.getTime())) {
+                            fecha = d.toLocaleTimeString('es-MX', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                second: '2-digit'
+                            });
+                        }
+                    }
+                } catch(e) {
+                    fecha = '--:--';
+                }
+            }
+
+            const nombre = mapaBD[a.status_clave] || a.status_texto || `Alerta ${index + 1}`;
+            const grave = (a.status_clave === 1 || a.status_clave === 5);
+
+            html += `
+                <div class="alert ${grave ? 'alert-danger' : 'alert-warning'} mb-2 p-2 small shadow-sm d-flex justify-content-between align-items-center border-0" 
+                     style="background: ${grave ? 'rgba(220,53,69,0.2)' : 'rgba(255,193,7,0.2)'}; color: white;">
+                    <div>
+                        <i class="fas ${grave ? 'fa-radiation' : 'fa-exclamation-triangle'} me-2"></i>
+                        <strong>${nombre}</strong>
+                        <div style="opacity: 0.8; font-size: 0.75rem;">${a.mensaje || 'Detección automática'}</div>
+                    </div>
+                    <span class="text-white-50" style="font-size: 0.7rem;">${fecha || '--:--'}</span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    }
+
+    actualizarQuickStats(data) {
+        // Esta función actualiza estadísticas rápidas si es necesario
+        console.log('📊 Datos resumen:', data);
     }
 
     inicializarGrafico() {
@@ -446,36 +449,6 @@ async cargarAlertas() {
     cambiarVistaGrafico(v) { 
         this.estadoApp.vistaGrafico = v; 
         this.actualizarGrafico(); 
-    }
-
-    async verMetricasAvanzadas() {
-        try {
-            const res = await fetch(`${this.backendUrl}/api/estadisticas-obstaculos`);
-            const data = await res.json();
-            const div = document.getElementById('metricasContenido');
-            if (div && data.obstaculos_por_tipo) {
-                div.innerHTML = '<div class="row">' +
-                    data.obstaculos_por_tipo.map(o => `
-                        <div class="col-md-6 mb-3">
-                            <div class="metric-card p-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span>${o.status_texto}</span>
-                                    <span class="badge bg-danger fs-6">${o.cantidad}</span>
-                                </div>
-                                <div class="progress mt-2" style="height: 8px;">
-                                    <div class="progress-bar bg-danger" style="width: ${Math.min(o.cantidad * 10, 100)}%"></div>
-                                </div>
-                            </div>
-                        </div>`).join('') + '</div>';
-                
-                // Mostrar el modal
-                const metricasModal = new bootstrap.Modal(document.getElementById('metricasModal'));
-                metricasModal.show();
-            }
-        } catch (e) { 
-            console.error("Error cargando métricas avanzadas:", e);
-            alert('Error al cargar las métricas avanzadas');
-        }
     }
 }
 

@@ -103,6 +103,9 @@ class ControlManager {
                 );
             }
             
+            // ⚠️ ACTUALIZAR CONTADOR DE ALERTAS EN TIEMPO REAL
+            this.incrementarContadorAlertas();
+            
             // ⚠️ IMPORTANTE: CORREGIDO - Ya NO enviamos comando urgente automáticamente
             // El Arduino ya maneja su propia evasión
             console.log('⚠️ Alerta recibida - Arduino manejará la evasión automática');
@@ -149,6 +152,36 @@ class ControlManager {
                 );
             }
         });
+    }
+
+    // 🆕 NUEVA FUNCIÓN PARA INCREMENTAR CONTADOR DE ALERTAS
+    incrementarContadorAlertas() {
+        console.log('📈 Incrementando contador de alertas...');
+        
+        // 1. Actualizar en el panel principal si existe
+        const totalAlertas = document.getElementById('totalAlertas');
+        if (totalAlertas) {
+            const current = parseInt(totalAlertas.textContent) || 0;
+            totalAlertas.textContent = current + 1;
+            console.log(`✅ totalAlertas incrementado a: ${current + 1}`);
+        }
+        
+        // 2. Actualizar en el modal (KPI)
+        const modalMetricAlertas = document.getElementById('modalMetricAlertas');
+        if (modalMetricAlertas) {
+            const current = parseInt(modalMetricAlertas.textContent) || 0;
+            modalMetricAlertas.textContent = current + 1;
+            console.log(`✅ modalMetricAlertas incrementado a: ${current + 1}`);
+        }
+        
+        // 3. Actualizar badge del modal
+        const modalContadorAlertas = document.getElementById('modalContadorAlertas');
+        if (modalContadorAlertas) {
+            const current = parseInt(modalContadorAlertas.textContent) || 0;
+            modalContadorAlertas.textContent = current + 1;
+            modalContadorAlertas.style.display = 'inline-block';
+            console.log(`✅ modalContadorAlertas incrementado a: ${current + 1}`);
+        }
     }
 
     // FUNCIONES ORIGINALES MANTENIDAS
