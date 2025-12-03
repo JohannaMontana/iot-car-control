@@ -1,8 +1,3 @@
-/**
- * Control Manager - Control Principal del Carrito IoT
- * Maneja movimientos, WebSocket y estado en tiempo real
- */
-
 class ControlManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500'; 
@@ -14,12 +9,6 @@ class ControlManager {
 
     init() {
         console.log('🚀 Iniciando ControlManager...');
-        
-        // Inicializar notification manager primero
-        if (!window.notificationManager) {
-            window.notificationManager = new NotificationManager();
-        }
-        this.notificationManager = window.notificationManager;
         
         // Conectar WebSocket
         try {
@@ -38,13 +27,23 @@ class ControlManager {
         // Configurar eventos WebSocket
         this.configurarEventosWebSocket();
         
+        // Inicializar notification manager
+        setTimeout(() => {
+            if (window.notificationManager) {
+                this.notificationManager = window.notificationManager;
+                console.log('🔔 NotificationManager inicializado');
+            }
+        }, 1000);
+
         // Cargar datos iniciales
-        this.cargarDatosIniciales();
+        this.actualizarEstado();
+        this.cargarHistorialRapido();
+        this.cargarTotalMovimientos();
         
-        // Actualizar cada 5 segundos
+        // Actualizar cada 3 segundos
         setInterval(() => {
-            this.actualizarEstadoConexion();
-        }, 5000);
+            this.actualizarEstado();
+        }, 3000);
         
         console.log('✅ ControlManager listo');
     }
@@ -56,66 +55,57 @@ class ControlManager {
             console.log('✅ WebSocket CONECTADO al servidor');
             this.updateServerLight(true);
             
-            // Notificación de conexión
-            if (this.notificationManager) {
-                this.notificationManager.showSuccess('🔌 Conectado', 'Conexión establecida con servidor');
-            }
+            // Forzar actualización del estado
+            setTimeout(() => this.actualizarEstado(), 1000);
         });
         
         this.socket.on('disconnect', (reason) => {
             console.log('❌ WebSocket DESCONECTADO:', reason);
             this.updateServerLight(false);
             this.updateCarLight(false);
-            
-            if (this.notificationManager) {
-                this.notificationManager.showWarning('🔌 Desconectado', 'Conexión perdida con servidor');
-            }
         });
         
         this.socket.on('connect_error', (error) => {
             console.error('❌ Error de conexión WebSocket:', error);
         });
 
-        // Evento cuando se agrega un movimiento
+        // Eventos de aplicación
         this.socket.on('movimiento_agregado', (data) => {
             console.log('📦 Movimiento agregado recibido:', data);
             
             // Actualizar UI
-            setTimeout(() => {
-                this.cargarHistorialMovimientos();
-                this.actualizarContadorMovimientos();
-            }, 300);
+            setTimeout(() => this.cargarHistorialRapido(), 300);
+            this.cargarTotalMovimientos();
             
             // Mostrar notificación
             if (this.notificationManager) {
                 const nombre = this.obtenerNombreMovimiento(data.status_clave);
                 this.notificationManager.showSuccess(
-                    '✅ Movimiento Ejecutado', 
-                    `${nombre} completado`
+                    '✅ Movimiento Completado', 
+                    `${nombre} ejecutado correctamente`
                 );
             }
         });
 
-        // Evento de alerta de obstáculo
         this.socket.on('alerta_obstaculo', (data) => {
             console.log('🚨 Alerta de obstáculo:', data);
             
-            // Incrementar contador de alertas
-            this.incrementarContadorAlertas();
+            // Mostrar alerta visual
+            this.mostrarAlertaObstaculo(data);
             
-            // Mostrar notificación
+            // Notificación
             if (this.notificationManager) {
                 const tipo = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
+                
                 this.notificationManager.showDanger(
                     '⚠️ ¡Alerta de Obstáculo!',
-                    `${tipo} detectado a ${data.distancia || '?'}cm`
+                    `${tipo} a ${data.distancia || '?'}cm - ${data.accion || 'Evasión automática'}`
                 );
             }
             
-            // Actualizar lista de alertas si el modal está abierto
-            if (window.modalMonitoringManager) {
-                window.modalMonitoringManager.cargarAlertas();
-            }
+            // ⚠️ IMPORTANTE: CORREGIDO - Ya NO enviamos comando urgente automáticamente
+            // El Arduino ya maneja su propia evasión
+            console.log('⚠️ Alerta recibida - Arduino manejará la evasión automática');
         });
 
         // Eventos de demo
@@ -135,7 +125,7 @@ class ControlManager {
             if (this.notificationManager) {
                 this.notificationManager.showSuccess(
                     '🎉 Demo Completada',
-                    `"${data.nombre}" finalizada`
+                    `"${data.nombre}" finalizada exitosamente`
                 );
             }
         });
@@ -145,7 +135,7 @@ class ControlManager {
             if (this.notificationManager) {
                 this.notificationManager.showSuccess(
                     '📁 Demo Creada',
-                    `"${data.nombre}" guardada`
+                    `"${data.nombre}" guardada correctamente`
                 );
             }
         });
@@ -155,16 +145,22 @@ class ControlManager {
             if (this.notificationManager) {
                 this.notificationManager.showWarning(
                     '🗑️ Demo Eliminada',
-                    'Secuencia eliminada'
+                    'Secuencia eliminada del sistema'
                 );
             }
         });
     }
 
-    // FUNCIONES DE MOVIMIENTO
+    // FUNCIONES ORIGINALES MANTENIDAS
     getVelocidad() {
         const r = document.querySelector('input[name="velocidad"]:checked');
         return r ? parseInt(r.value) : 180;
+    }
+
+    getLocalTimestamp() {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        return new Date(now - offset).toISOString().slice(0, 19).replace('T', ' ');
     }
 
     async moverCarrito(status) {
@@ -173,31 +169,35 @@ class ControlManager {
         
         console.log(`🚀 Enviando: ${movimiento} (status: ${status}, velocidad: ${velocidad})`);
         
-        // Mostrar notificación de envío
-        if (this.notificationManager) {
-            this.notificationManager.showInfo('🚀 Enviando...', `${movimiento}`);
-        }
-        
         try {
+            if (this.notificationManager) {
+                this.notificationManager.showInfo(
+                    '🚀 Enviando Comando',
+                    `${movimiento} (Vel: ${velocidad})...`
+                );
+            }
+            
             const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     status_clave: status,
-                    velocidad: velocidad
+                    velocidad: velocidad,
+                    duracion_segundos: 0,
+                    timestamp_local: this.getLocalTimestamp()
                 })
             });
             
             const data = await response.json();
             console.log('📡 Respuesta:', data);
             
-            // Incrementar contador localmente
-            this.incrementarContadorMovimientos();
-            
         } catch (e) { 
             console.error("❌ Error:", e);
             if (this.notificationManager) {
-                this.notificationManager.showDanger('❌ Error', 'No se pudo conectar');
+                this.notificationManager.showDanger(
+                    '❌ Error de Conexión',
+                    `${movimiento} - No se pudo conectar`
+                );
             }
         }
     }
@@ -205,17 +205,25 @@ class ControlManager {
     async detenerCarrito() {
         console.log('⏹️ Deteniendo carrito...');
         
-        if (this.notificationManager) {
-            this.notificationManager.showInfo('⏹️ Deteniendo...', 'Enviando comando');
-        }
-        
         try { 
+            if (this.notificationManager) {
+                this.notificationManager.showWarning('⏹️ Deteniendo', 'Enviando comando...');
+            }
+            
             const response = await fetch(`${this.backendUrl}/api/detener`, { 
                 method: 'POST' 
             });
             
             const data = await response.json();
             console.log('📡 Respuesta detención:', data);
+            
+            if (data.success) {
+                setTimeout(() => {
+                    if (this.notificationManager) {
+                        this.notificationManager.showSuccess('✅ Robot Detenido', 'Movimiento interrumpido');
+                    }
+                }, 300);
+            }
             
         } catch(e){
             console.error("❌ Error deteniendo:", e);
@@ -225,118 +233,8 @@ class ControlManager {
         }
     }
 
-    // FUNCIONES DE DATOS INICIALES
-    async cargarDatosIniciales() {
-        await Promise.all([
-            this.actualizarEstadoConexion(),
-            this.cargarHistorialMovimientos(),
-            this.actualizarContadorMovimientos(),
-            this.actualizarContadorAlertas()
-        ]);
-    }
-
-    async actualizarEstadoConexion() {
-        try {
-            const res = await fetch(`${this.backendUrl}/api/estado-actual`);
-            const data = await res.json();
-            
-            // Actualizar luz del carro
-            if (data.estado_ws_arduino === 'Conectado') {
-                this.updateCarLight(true);
-            } else {
-                this.updateCarLight(false);
-            }
-            
-            // Actualizar estado en UI si existe
-            const statusEl = document.getElementById('statusConexion');
-            if (statusEl) {
-                statusEl.textContent = data.estado_ws_arduino === 'Conectado' ? 'En Línea' : 'Offline';
-                statusEl.className = data.estado_ws_arduino === 'Conectado' ? 'text-success fw-bold' : 'text-danger fw-bold';
-            }
-            
-        } catch (e) {
-            console.error("❌ Error actualizando estado:", e);
-            this.updateCarLight(false);
-        }
-    }
-
-    // CONTADORES
-    async actualizarContadorMovimientos() {
-        try {
-            const res = await fetch(`${this.backendUrl}/api/metricas`);
-            const data = await res.json();
-            
-            let total = 0;
-            if (data.movimientos_por_tipo && Array.isArray(data.movimientos_por_tipo)) {
-                data.movimientos_por_tipo.forEach(tipo => {
-                    total += tipo.cantidad || 0;
-                });
-            }
-            
-            // Actualizar en todos los lugares
-            const elementos = ['totalMovimientos', 'modalMetricMovimientos'];
-            elementos.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = total;
-            });
-            
-        } catch (e) {
-            console.error("❌ Error cargando total movimientos:", e);
-        }
-    }
-
-    incrementarContadorMovimientos() {
-        const elementos = ['totalMovimientos', 'modalMetricMovimientos'];
-        elementos.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                const current = parseInt(el.textContent) || 0;
-                el.textContent = current + 1;
-            }
-        });
-    }
-
-    async actualizarContadorAlertas() {
-        try {
-            const res = await fetch(`${this.backendUrl}/api/alertas`);
-            const data = await res.json();
-            
-            const alertas = data.alertas || [];
-            const count = alertas.length;
-            
-            // Actualizar en todos los lugares
-            const elementos = ['totalAlertas', 'modalMetricAlertas', 'modalContadorAlertas'];
-            elementos.forEach(id => {
-                const el = document.getElementById(id);
-                if (el) {
-                    el.textContent = count;
-                    if (id === 'modalContadorAlertas') {
-                        el.style.display = count > 0 ? 'inline-block' : 'none';
-                    }
-                }
-            });
-            
-        } catch (e) {
-            console.error("❌ Error cargando alertas:", e);
-        }
-    }
-
-    incrementarContadorAlertas() {
-        const elementos = ['totalAlertas', 'modalMetricAlertas', 'modalContadorAlertas'];
-        elementos.forEach(id => {
-            const el = document.getElementById(id);
-            if (el) {
-                const current = parseInt(el.textContent) || 0;
-                el.textContent = current + 1;
-                if (id === 'modalContadorAlertas') {
-                    el.style.display = 'inline-block';
-                }
-            }
-        });
-    }
-
     // HISTORIAL
-    async cargarHistorialMovimientos() {
+    async cargarHistorialRapido() {
         const cont = document.getElementById('historialMovimientos');
         if (!cont) return;
 
@@ -375,6 +273,49 @@ class ControlManager {
         }
     }
 
+    mostrarAlertaObstaculo(data) {
+        const txt = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
+        
+        console.log(`🚨 Mostrando alerta: ${txt}`);
+        
+        const div = document.createElement('div');
+        div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(220,20,60,0.98);color:white;padding:30px;border-radius:15px;z-index:11000;text-align:center;width:320px;border:2px solid white;animation:pulse 0.5s infinite alternate;';
+        div.innerHTML = `<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h3>¡OBSTÁCULO!</h3><div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">${txt}</div><small class="d-block">Distancia: ${data.distancia || '?'}cm</small><small class="d-block">${data.accion || 'Evasión automática'}</small>`;
+        document.body.appendChild(div);
+        try { 
+            new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play(); 
+        } catch(e){}
+        setTimeout(() => div.remove(), 3500);
+    }
+    
+    // FUNCIONES DE UI
+    actualizarUIConexion(online) {
+        console.log(`📡 UI conexión: ${online ? 'Conectado' : 'Desconectado'}`);
+    }
+
+    async actualizarEstado() {
+        try {
+            const res = await fetch(`${this.backendUrl}/api/estado-actual`);
+            const data = await res.json();
+            
+            console.log('📊 Datos estado:', data);
+            
+            // ACTUALIZAR FOCO DEL CARRO
+            if (data.estado_ws_arduino === 'Conectado' || 
+                (data.estadisticas && data.estadisticas.total_movimientos !== undefined)) {
+                this.updateCarLight(true);
+                console.log('✅ Carro CONECTADO - Luz verde');
+            } else {
+                this.updateCarLight(false);
+                console.log('❌ Carro DESCONECTADO - Luz roja');
+            }
+            
+        } catch (e) {
+            console.error("❌ Error actualizando estado:", e);
+            this.updateCarLight(false);
+        }
+    }
+
     // FUNCIONES PARA LAS LUCES
     updateServerLight(online) {
         const serverLight = document.getElementById('serverLight');
@@ -382,7 +323,9 @@ class ControlManager {
         
         if (serverLight) {
             serverLight.classList.remove('online');
-            if (online) serverLight.classList.add('online');
+            if (online) {
+                serverLight.classList.add('online');
+            }
         }
         
         if (serverStatus) {
@@ -395,9 +338,13 @@ class ControlManager {
         const carLight = document.getElementById('carLight');
         const carStatus = document.getElementById('carStatus');
         
+        console.log(`🚗 Luz carro: ${online ? 'Verde' : 'Rojo'}`);
+        
         if (carLight) {
             carLight.classList.remove('online');
-            if (online) carLight.classList.add('online');
+            if (online) {
+                carLight.classList.add('online');
+            }
         }
         
         if (carStatus) {
@@ -406,7 +353,36 @@ class ControlManager {
         }
     }
 
-    // UTILIDADES
+    // TOTAL DE MOVIMIENTOS
+    async cargarTotalMovimientos() {
+        try {
+            const res = await fetch(`${this.backendUrl}/api/metricas`);
+            const data = await res.json();
+            
+            let total = 0;
+            if (data.movimientos_por_tipo && Array.isArray(data.movimientos_por_tipo)) {
+                data.movimientos_por_tipo.forEach(tipo => {
+                    total += tipo.cantidad || 0;
+                });
+            }
+            
+            const totalMov = document.getElementById('totalMovimientos');
+            if (totalMov) {
+                totalMov.textContent = total;
+            }
+            
+            const modalMov = document.getElementById('modalMetricMovimientos');
+            if (modalMov) {
+                modalMov.textContent = total;
+            }
+            
+            console.log(`📊 Total movimientos: ${total}`);
+            
+        } catch (e) {
+            console.error("❌ Error cargando total:", e);
+        }
+    }
+
     obtenerNombreMovimiento(id) {
         const movimientos = {
             1: "Adelante", 
@@ -422,6 +398,10 @@ class ControlManager {
             11: "Vuelta 360° Izquierda"
         };
         return movimientos[id] || `Mov ${id}`;
+    }
+
+    obtenerVelocidadSeleccionada() {
+        return this.getVelocidad();
     }
 }
 
