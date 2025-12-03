@@ -339,7 +339,7 @@ class DemoManager {
         // Notificar movimiento agregado
         if (window.notificationManager) {
             const nombreMov = this.obtenerNombreMovimiento(statusClave);
-            window.notificationManager.showInfo('➕ Movimiento Agregado', `${nombreMov} (${duracion}s @ ${velocidad})`);
+            window.notificationManager.showInfo('➕ Movimiento Agregado', `${nombreMov}`);
         }
     }
 
