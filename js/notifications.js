@@ -4,13 +4,16 @@
  */
 
 class NotificationManager {
+    // Constructor: inicializa propiedades y configuración básica
     constructor() {
-        this.container = null;
-        this.socket = null;
-        this.initContainer();
-        this.initSocketListeners();
+        this.container = null;        // Contenedor DOM para notificaciones
+        this.socket = null;           // Referencia al socket WebSocket
         
-        // Diccionario de movimientos
+        // Inicializar componentes
+        this.initContainer();         // Crear contenedor en DOM
+        this.initSocketListeners();   // Configurar listeners de socket
+        
+        // Diccionario para mapear códigos de movimiento a nombres legibles
         this.movimientosDict = {
             1: "Adelante",
             2: "Atrás", 
@@ -26,25 +29,28 @@ class NotificationManager {
         };
     }
 
+    // Crear e inicializar el contenedor de notificaciones en el DOM
     initContainer() {
-        // Crear contenedor de notificaciones si no existe
+        // Si no existe el contenedor, crearlo
         if (!document.getElementById('notification-container')) {
             this.container = document.createElement('div');
             this.container.id = 'notification-container';
             this.container.className = 'notification-container';
-            document.body.appendChild(this.container);
+            document.body.appendChild(this.container);  // Agregar al body
         } else {
+            // Si ya existe, obtener referencia
             this.container = document.getElementById('notification-container');
         }
     }
 
+    // Configurar listeners para eventos del socket WebSocket
     initSocketListeners() {
-        // Obtener el socket del controlManager si existe
+        // Si controlManager existe y tiene socket, usarlo
         if (window.controlManager && window.controlManager.socket) {
             this.socket = window.controlManager.socket;
-            this.setupSocketEvents();
+            this.setupSocketEvents();  // Configurar eventos
         } else {
-            // Esperar a que se cargue el controlManager
+            // Si no existe, esperar 1 segundo e intentar nuevamente
             setTimeout(() => {
                 if (window.controlManager && window.controlManager.socket) {
                     this.socket = window.controlManager.socket;
@@ -54,10 +60,11 @@ class NotificationManager {
         }
     }
 
+    // Configurar todos los eventos del socket WebSocket
     setupSocketEvents() {
-        if (!this.socket) return;
+        if (!this.socket) return;  // Salir si no hay socket
 
-        // 1. Cuando se agrega un movimiento (respuesta del backend)
+        // 1. Evento cuando se agrega un movimiento
         this.socket.on('movimiento_agregado', (data) => {
             const movimiento = this.movimientosDict[data.status_clave] || `Movimiento ${data.status_clave}`;
             this.showSuccess(
@@ -66,14 +73,14 @@ class NotificationManager {
             );
         });
 
-        // 2. Alertas de obstáculos
+        // 2. Evento de alerta de obstáculo
         this.socket.on('alerta_obstaculo', (data) => {
             const tipos = {
-                        1: 'Obstáculo Adelante',
-                        2: 'Obstáculo Adelante-Izquierda',
-                        3: 'Obstáculo Adelante-Derecha',
-                        4: 'Obstáculo Adelante-Izquierda-Derecha',
-                        5: 'Obstáculo Retrocede'
+                1: 'Obstáculo Adelante',
+                2: 'Obstáculo Adelante-Izquierda',
+                3: 'Obstáculo Adelante-Derecha',
+                4: 'Obstáculo Adelante-Izquierda-Derecha',
+                5: 'Obstáculo Retrocede'
             };
             const tipo = tipos[data.tipo_obstaculo] || 'Obstáculo detectado';
             
@@ -83,7 +90,7 @@ class NotificationManager {
             );
         });
 
-        // 3. Progreso de demos
+        // 3. Evento de progreso de demo
         this.socket.on('demo_progreso', (data) => {
             this.showInfo(
                 `↻ Demo Progreso (${data.movimiento_actual}/${data.total_movimientos})`,
@@ -91,7 +98,7 @@ class NotificationManager {
             );
         });
 
-        // 4. Demo completada
+        // 4. Evento cuando se completa una demo
         this.socket.on('demo_completada', (data) => {
             this.showSuccess(
                 '🎉 Demo Completada',
@@ -99,7 +106,7 @@ class NotificationManager {
             );
         });
 
-        // 5. Demo creada
+        // 5. Evento cuando se crea una demo
         this.socket.on('demo_creada', (data) => {
             this.showSuccess(
                 '📁 Demo Creada',
@@ -107,7 +114,7 @@ class NotificationManager {
             );
         });
 
-        // 6. Demo eliminada
+        // 6. Evento cuando se elimina una demo
         this.socket.on('demo_eliminada', () => {
             this.showWarning(
                 '🗑️ Demo Eliminada',
@@ -115,7 +122,7 @@ class NotificationManager {
             );
         });
 
-        // 7. Evento de conexión
+        // 7. Evento de conexión exitosa
         this.socket.on('connect', () => {
             this.showSuccess(
                 '🔗 Conectado',
@@ -132,39 +139,48 @@ class NotificationManager {
         });
     }
 
-    // Métodos para mostrar diferentes tipos de notificaciones
+    // Métodos auxiliares para mostrar diferentes tipos de notificaciones
+
+    // Mostrar notificación de éxito
     showSuccess(title, message) {
         this.showNotification('success', title, message);
     }
 
+    // Mostrar notificación informativa
     showInfo(title, message) {
         this.showNotification('info', title, message);
     }
 
+    // Mostrar notificación de advertencia
     showWarning(title, message) {
         this.showNotification('warning', title, message);
     }
 
+    // Mostrar notificación de peligro/error
     showDanger(title, message) {
         this.showNotification('danger', title, message);
     }
 
+    // Método principal para mostrar notificaciones en el DOM
     showNotification(type, title, message) {
+        // Crear elemento de notificación
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         
-        // Icono según tipo
+        // Determinar icono según tipo
         let icon = 'fa-check-circle';
         if (type === 'danger') icon = 'fa-exclamation-triangle';
         if (type === 'warning') icon = 'fa-exclamation-circle';
         if (type === 'info') icon = 'fa-info-circle';
         
+        // Generar timestamp formateado
         const timestamp = new Date().toLocaleTimeString('es-MX', { 
             hour: '2-digit', 
             minute: '2-digit',
             second: '2-digit'
         });
         
+        // Estructura HTML de la notificación
         notification.innerHTML = `
             <div class="notification-icon">
                 <i class="fas ${icon}"></i>
@@ -180,54 +196,61 @@ class NotificationManager {
         // Agregar al contenedor
         this.container.appendChild(notification);
         
-        // Limitar a 5 notificaciones máximo
+        // Limitar a máximo 5 notificaciones visibles
         const notifications = this.container.querySelectorAll('.notification');
         if (notifications.length > 5) {
-            notifications[0].remove();
+            notifications[0].remove();  // Eliminar la más antigua
         }
         
-        // Remover después de 3 segundos
+        // Auto-eliminar notificación después de 3 segundos
         setTimeout(() => {
             if (notification.parentNode === this.container) {
-                notification.style.animation = 'fadeOut 0.5s forwards';
+                notification.style.animation = 'fadeOut 0.5s forwards';  // Animación de salida
                 setTimeout(() => {
                     if (notification.parentNode === this.container) {
-                        notification.remove();
+                        notification.remove();  // Eliminar del DOM
                     }
                 }, 500);
             }
         }, 3000);
         
-        // Efecto de sonido opcional (solo para alertas importantes)
+        // Reproducir sonido solo para alertas importantes (danger)
         if (type === 'danger') {
             this.playNotificationSound();
         }
     }
 
+    // Reproducir sonido de notificación usando Web Audio API
     playNotificationSound() {
         try {
-            // Crear un tono de notificación simple
+            // Crear contexto de audio
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
+            const oscillator = audioContext.createOscillator();  // Generador de onda
+            const gainNode = audioContext.createGain();         // Control de volumen
             
+            // Conectar componentes
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
             
-            oscillator.frequency.value = 800;
-            oscillator.type = 'sine';
+            // Configurar sonido
+            oscillator.frequency.value = 800;  // Frecuencia en Hz
+            oscillator.type = 'sine';          // Tipo de onda (senoidal)
             
+            // Configurar envelope (ataque/decaimiento)
             gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
             gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
             
+            // Iniciar y detener sonido
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + 0.5);
         } catch (e) {
-            console.log('AudioContext no soportado');
+            console.log('AudioContext no soportado');  // Fallback silencioso
         }
     }
 
-    // Métodos públicos para usar desde otros archivos
+    // ========== MÉTODOS PÚBLICOS PARA USO DESDE OTROS ARCHIVOS ==========
+
+    // Notificar movimiento ejecutado exitosamente
     movimientoEjecutado(statusClave) {
         const movimiento = this.movimientosDict[statusClave] || `Movimiento ${statusClave}`;
         this.showSuccess(
@@ -236,6 +259,7 @@ class NotificationManager {
         );
     }
 
+    // Notificar movimiento fallido
     movimientoFallido(statusClave, error) {
         const movimiento = this.movimientosDict[statusClave] || `Movimiento ${statusClave}`;
         this.showDanger(
@@ -244,6 +268,7 @@ class NotificationManager {
         );
     }
 
+    // Notificar inicio de demo
     demoIniciada(nombre, pasos) {
         this.showInfo(
             '🚀 Demo Iniciada',
@@ -251,6 +276,7 @@ class NotificationManager {
         );
     }
 
+    // Notificar demo fallida
     demoFallida(nombre, error) {
         this.showDanger(
             '❌ Error en Demo',
@@ -259,12 +285,14 @@ class NotificationManager {
     }
 }
 
-// Instancia global
+// Crear instancia global accesible desde cualquier parte
 const notificationManager = new NotificationManager();
 
-// Función helper para usar desde otros archivos
+// Función helper global para mostrar notificaciones
 function showNotification(type, title, message) {
+    // Verificar que notificationManager y el método existan
     if (notificationManager && typeof notificationManager[`show${type.charAt(0).toUpperCase() + type.slice(1)}`] === 'function') {
+        // Llamar al método correspondiente (showSuccess, showInfo, etc.)
         notificationManager[`show${type.charAt(0).toUpperCase() + type.slice(1)}`](title, message);
     }
 }

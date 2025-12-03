@@ -1,22 +1,32 @@
+// Define la clase ControlManager para gestionar toda la comunicación con el backend
 class ControlManager {
+    // Constructor - se ejecuta cuando se crea una nueva instancia
     constructor() {
+        // URL del backend Flask (servidor EC2 en AWS)
         this.backendUrl = 'http://54.147.92.50:5500'; 
+        
+        // Variable para almacenar la conexión WebSocket
         this.socket = null;
+        
+        // Referencia al gestor de notificaciones
         this.notificationManager = null;
         
+        // Espera a que el DOM esté completamente cargado antes de inicializar
         document.addEventListener('DOMContentLoaded', () => this.init());
     }
 
+    // Método de inicialización principal
     init() {
         console.log('🚀 Iniciando ControlManager...');
         
-        // Conectar WebSocket
+        // Conectar WebSocket al backend
         try {
+            // Crea conexión SocketIO con opciones de reconexión
             this.socket = io(this.backendUrl, { 
-                transports: ['websocket', 'polling'],
-                reconnection: true,
-                reconnectionAttempts: 5,
-                reconnectionDelay: 1000
+                transports: ['websocket', 'polling'], // Usa WebSocket o polling como fallback
+                reconnection: true,                   // Habilita reconexión automática
+                reconnectionAttempts: 5,              // 5 intentos máximos
+                reconnectionDelay: 1000               // 1 segundo entre intentos
             });
             
             console.log('📡 WebSocket configurado en:', this.backendUrl);
@@ -24,10 +34,11 @@ class ControlManager {
             console.error('❌ Error configurando WebSocket:', error);
         }
 
-        // Configurar eventos WebSocket
+        // Configurar eventos (callbacks) para el WebSocket
         this.configurarEventosWebSocket();
         
-        // Inicializar notification manager
+        // Inicializar notification manager después de un breve retraso
+        // Esto asegura que window.notificationManager ya esté disponible
         setTimeout(() => {
             if (window.notificationManager) {
                 this.notificationManager = window.notificationManager;
@@ -35,12 +46,12 @@ class ControlManager {
             }
         }, 1000);
 
-        // Cargar datos iniciales
-        this.actualizarEstado();
-        this.cargarHistorialRapido();
-        this.cargarTotalMovimientos();
+        // Cargar datos iniciales para la interfaz
+        this.actualizarEstado();          // Estado de conexión del carrito
+        this.cargarHistorialRapido();     // Últimos movimientos
+        this.cargarTotalMovimientos();    // Contador total de movimientos
         
-        // Actualizar cada 3 segundos
+        // Configurar actualización periódica del estado cada 3 segundos
         setInterval(() => {
             this.actualizarEstado();
         }, 3000);
@@ -48,36 +59,44 @@ class ControlManager {
         console.log('✅ ControlManager listo');
     }
 
+    // Configura todos los eventos (callbacks) del WebSocket
     configurarEventosWebSocket() {
-        if (!this.socket) return;
+        if (!this.socket) return; // Sale si no hay socket configurado
 
+        // Evento: Conexión exitosa al servidor
         this.socket.on('connect', () => {
             console.log('✅ WebSocket CONECTADO al servidor');
-            this.updateServerLight(true);
+            this.updateServerLight(true); // Actualiza luz verde del servidor
             
-            // Forzar actualización del estado
+            // Forzar actualización del estado después de 1 segundo
             setTimeout(() => this.actualizarEstado(), 1000);
         });
         
+        // Evento: Desconexión del servidor
         this.socket.on('disconnect', (reason) => {
             console.log('❌ WebSocket DESCONECTADO:', reason);
-            this.updateServerLight(false);
-            this.updateCarLight(false);
+            this.updateServerLight(false); // Luz roja servidor
+            this.updateCarLight(false);    // Luz roja carrito
         });
         
+        // Evento: Error en la conexión
         this.socket.on('connect_error', (error) => {
             console.error('❌ Error de conexión WebSocket:', error);
         });
 
-        // Eventos de aplicación
+        // ==========================================
+        // EVENTOS DE APLICACIÓN ESPECÍFICOS
+        // ==========================================
+
+        // Evento: Movimiento agregado exitosamente
         this.socket.on('movimiento_agregado', (data) => {
             console.log('📦 Movimiento agregado recibido:', data);
             
-            // Actualizar UI
+            // Actualizar UI después de 300ms
             setTimeout(() => this.cargarHistorialRapido(), 300);
             this.cargarTotalMovimientos();
             
-            // Mostrar notificación
+            // Mostrar notificación de éxito
             if (this.notificationManager) {
                 const nombre = this.obtenerNombreMovimiento(data.status_clave);
                 this.notificationManager.showSuccess(
@@ -87,13 +106,11 @@ class ControlManager {
             }
         });
 
+        // Evento: Alerta de obstáculo detectado por Arduino
         this.socket.on('alerta_obstaculo', (data) => {
             console.log('🚨 Alerta de obstáculo:', data);
             
-            // Mostrar alerta visual
-           // this.mostrarAlertaObstaculo(data);
-            
-            // Notificación
+            // Mostrar notificación de peligro
             if (this.notificationManager) {
                 const tipo = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
                 
@@ -107,11 +124,11 @@ class ControlManager {
             this.incrementarContadorAlertas();
             
             // ⚠️ IMPORTANTE: CORREGIDO - Ya NO enviamos comando urgente automáticamente
-            // El Arduino ya maneja su propia evasión
+            // El Arduino ya maneja su propia evasión automáticamente
             console.log('⚠️ Alerta recibida - Arduino manejará la evasión automática');
         });
 
-        // Eventos de demo
+        // Eventos relacionados con demos (secuencias automáticas)
         this.socket.on('demo_progreso', (data) => {
             console.log('🔄 Progreso de demo:', data);
             if (window.demoManager) {
@@ -154,7 +171,7 @@ class ControlManager {
         });
     }
 
-    // 🆕 NUEVA FUNCIÓN PARA INCREMENTAR CONTADOR DE ALERTAS
+    // 🆕 NUEVA FUNCIÓN: Incrementa contadores de alertas en la UI
     incrementarContadorAlertas() {
         console.log('📈 Incrementando contador de alertas...');
         
@@ -184,18 +201,24 @@ class ControlManager {
         }
     }
 
+    // ==========================================
     // FUNCIONES ORIGINALES MANTENIDAS
+    // ==========================================
+
+    // Obtiene la velocidad seleccionada en los radio buttons
     getVelocidad() {
         const r = document.querySelector('input[name="velocidad"]:checked');
-        return r ? parseInt(r.value) : 180;
+        return r ? parseInt(r.value) : 180; // Default 180 si no hay selección
     }
 
+    // Genera timestamp local en formato ISO simplificado
     getLocalTimestamp() {
         const now = new Date();
-        const offset = now.getTimezoneOffset() * 60000;
+        const offset = now.getTimezoneOffset() * 60000; // Offset en milisegundos
         return new Date(now - offset).toISOString().slice(0, 19).replace('T', ' ');
     }
 
+    // Envía comando de movimiento al backend
     async moverCarrito(status) {
         const movimiento = this.obtenerNombreMovimiento(status);
         const velocidad = this.getVelocidad();
@@ -203,6 +226,7 @@ class ControlManager {
         console.log(`🚀 Enviando: ${movimiento} (status: ${status}, velocidad: ${velocidad})`);
         
         try {
+            // Mostrar notificación de inicio
             if (this.notificationManager) {
                 this.notificationManager.showInfo(
                     '🚀 Enviando Comando',
@@ -210,13 +234,14 @@ class ControlManager {
                 );
             }
             
+            // Enviar petición POST al endpoint de movimiento
             const response = await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     status_clave: status,
                     velocidad: velocidad,
-                    duracion_segundos: 0,
+                    duracion_segundos: 0, // 0 = movimiento continuo
                     timestamp_local: this.getLocalTimestamp()
                 })
             });
@@ -235,6 +260,7 @@ class ControlManager {
         }
     }
 
+    // Envía comando de detención de emergencia
     async detenerCarrito() {
         console.log('⏹️ Deteniendo carrito...');
         
@@ -266,23 +292,28 @@ class ControlManager {
         }
     }
 
-    // HISTORIAL
+    // ==========================================
+    // HISTORIAL - Carga los últimos movimientos
+    // ==========================================
+
     async cargarHistorialRapido() {
         const cont = document.getElementById('historialMovimientos');
-        if (!cont) return;
+        if (!cont) return; // Sale si no existe el elemento
 
         try {
+            // Obtener últimos 10 movimientos del backend
             const res = await fetch(`${this.backendUrl}/api/ultimos-10-movimientos`);
             const data = await res.json();
 
             if (data.success && Array.isArray(data.movimientos) && data.movimientos.length > 0) {
-                const ultimos5 = data.movimientos.slice(0, 5);
+                const ultimos5 = data.movimientos.slice(0, 5); // Toma solo los 5 más recientes
                 
                 let html = '<ul class="list-group list-group-flush">';
                 ultimos5.forEach(mov => {
                     let hora = '--:--';
                     if(mov.fecha_hora) {
                         try {
+                            // Extrae solo la parte de la hora (HH:MM)
                             const timePart = String(mov.fecha_hora).split(' ')[1] || '';
                             hora = timePart.substring(0,5);
                         } catch(e) {}
@@ -306,26 +337,36 @@ class ControlManager {
         }
     }
 
+    // Muestra alerta visual de obstáculo (actualmente comentada)
     mostrarAlertaObstaculo(data) {
         const txt = data.nombre_obstaculo || `Obstáculo ${data.tipo_obstaculo}`;
         
         console.log(`🚨 Mostrando alerta: ${txt}`);
         
+        // Crea un div flotante con la alerta
         const div = document.createElement('div');
         div.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(220,20,60,0.98);color:white;padding:30px;border-radius:15px;z-index:11000;text-align:center;width:320px;border:2px solid white;animation:pulse 0.5s infinite alternate;';
         div.innerHTML = `<i class="fas fa-exclamation-triangle fa-3x mb-3"></i><h3>¡OBSTÁCULO!</h3><div class="bg-white text-danger p-2 rounded fw-bold mb-2 text-uppercase">${txt}</div><small class="d-block">Distancia: ${data.distancia || '?'}cm</small><small class="d-block">${data.accion || 'Evasión automática'}</small>`;
         document.body.appendChild(div);
+        
+        // Intenta reproducir sonido de alerta
         try { 
             new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play(); 
         } catch(e){}
+        
+        // Remueve la alerta después de 3.5 segundos
         setTimeout(() => div.remove(), 3500);
     }
     
-    // FUNCIONES DE UI
+    // ==========================================
+    // FUNCIONES DE UI - Actualización de interfaz
+    // ==========================================
+
     actualizarUIConexion(online) {
         console.log(`📡 UI conexión: ${online ? 'Conectado' : 'Desconectado'}`);
     }
 
+    // Consulta el estado actual del sistema al backend
     async actualizarEstado() {
         try {
             const res = await fetch(`${this.backendUrl}/api/estado-actual`);
@@ -333,7 +374,7 @@ class ControlManager {
             
             console.log('📊 Datos estado:', data);
             
-            // ACTUALIZAR FOCO DEL CARRO
+            // ACTUALIZAR FOCO DEL CARRO (luz verde/roja)
             if (data.estado_ws_arduino === 'Conectado' || 
                 (data.estadisticas && data.estadisticas.total_movimientos !== undefined)) {
                 this.updateCarLight(true);
@@ -345,11 +386,15 @@ class ControlManager {
             
         } catch (e) {
             console.error("❌ Error actualizando estado:", e);
-            this.updateCarLight(false);
+            this.updateCarLight(false); // En caso de error, luz roja
         }
     }
 
-    // FUNCIONES PARA LAS LUCES
+    // ==========================================
+    // FUNCIONES PARA LAS LUCES DE ESTADO
+    // ==========================================
+
+    // Actualiza la luz/indicador del servidor
     updateServerLight(online) {
         const serverLight = document.getElementById('serverLight');
         const serverStatus = document.getElementById('serverStatus');
@@ -357,7 +402,7 @@ class ControlManager {
         if (serverLight) {
             serverLight.classList.remove('online');
             if (online) {
-                serverLight.classList.add('online');
+                serverLight.classList.add('online'); // Clase CSS para luz verde
             }
         }
         
@@ -367,6 +412,7 @@ class ControlManager {
         }
     }
 
+    // Actualiza la luz/indicador del carrito
     updateCarLight(online) {
         const carLight = document.getElementById('carLight');
         const carStatus = document.getElementById('carStatus');
@@ -386,12 +432,17 @@ class ControlManager {
         }
     }
 
-    // TOTAL DE MOVIMIENTOS
+    // ==========================================
+    // TOTAL DE MOVIMIENTOS - Carga estadísticas
+    // ==========================================
+
     async cargarTotalMovimientos() {
         try {
+            // Obtener métricas del backend
             const res = await fetch(`${this.backendUrl}/api/metricas`);
             const data = await res.json();
             
+            // Calcular total sumando todos los tipos de movimiento
             let total = 0;
             if (data.movimientos_por_tipo && Array.isArray(data.movimientos_por_tipo)) {
                 data.movimientos_por_tipo.forEach(tipo => {
@@ -399,11 +450,13 @@ class ControlManager {
                 });
             }
             
+            // Actualizar en panel principal
             const totalMov = document.getElementById('totalMovimientos');
             if (totalMov) {
                 totalMov.textContent = total;
             }
             
+            // Actualizar en modal de estadísticas
             const modalMov = document.getElementById('modalMetricMovimientos');
             if (modalMov) {
                 modalMov.textContent = total;
@@ -416,6 +469,11 @@ class ControlManager {
         }
     }
 
+    // ==========================================
+    // FUNCIONES DE UTILIDAD
+    // ==========================================
+
+    // Convierte ID numérico de movimiento a nombre legible
     obtenerNombreMovimiento(id) {
         const movimientos = {
             1: "Adelante", 
@@ -433,9 +491,11 @@ class ControlManager {
         return movimientos[id] || `Mov ${id}`;
     }
 
+    // Getter público para obtener velocidad seleccionada
     obtenerVelocidadSeleccionada() {
         return this.getVelocidad();
     }
 }
 
+// Crea una instancia global accesible desde toda la aplicación
 window.controlManager = new ControlManager();
