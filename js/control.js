@@ -91,7 +91,7 @@ class ControlManager {
             console.log('🚨 Alerta de obstáculo:', data);
             
             // Mostrar alerta visual
-            this.mostrarAlertaObstaculo(data);
+           // this.mostrarAlertaObstaculo(data);
             
             // Notificación
             if (this.notificationManager) {

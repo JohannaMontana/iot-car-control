@@ -21,7 +21,7 @@ class ModalMonitoringManager {
         console.log('🚀 Iniciando ModalMonitoringManager...');
         this.inicializarGrafico();
         this.conectarSocket();
-        
+
         // Actualizar datos cuando se abre el modal
         const modal = document.getElementById('monitoringModal');
         if (modal) {
@@ -29,7 +29,7 @@ class ModalMonitoringManager {
                 this.actualizarDatos();
                 this.startAutoRefresh();
             });
-            
+
             modal.addEventListener('hidden.bs.modal', () => {
                 this.stopAutoRefresh();
             });
@@ -79,8 +79,8 @@ class ModalMonitoringManager {
             const infoUpd = document.getElementById('modalInfoActualizacion');
             if (infoUpd) infoUpd.textContent = this.estadoApp.ultimaActualizacion.toLocaleTimeString();
 
-        } catch (e) { 
-            console.error("Error actualizando datos del modal:", e); 
+        } catch (e) {
+            console.error("Error actualizando datos del modal:", e);
         }
     }
 
@@ -97,63 +97,63 @@ class ModalMonitoringManager {
     }
 
     async cargarAlertas() {
-    try {
-        console.log('🔔 Cargando alertas desde API...');
-        const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
-        const dataAlert = await resAlert.json();
-        
-        console.log('📊 Respuesta API /alertas:', dataAlert);
-        
-        // 🚨 CORRECCIÓN CRÍTICA: Manejar diferentes formatos de respuesta
-        let alertas = [];
-        
-        if (Array.isArray(dataAlert)) {
-            // Si la respuesta es directamente un array
-            alertas = dataAlert;
-            console.log('✅ Alertas como array directo:', alertas.length);
-        } else if (dataAlert && Array.isArray(dataAlert.alertas)) {
-            // Si la respuesta tiene propiedad .alertas
-            alertas = dataAlert.alertas;
-            console.log('✅ Alertas en propiedad .alertas:', alertas.length);
-        } else if (dataAlert && dataAlert.alertas === undefined) {
-            // Si la respuesta es un objeto pero sin .alertas
-            console.warn('⚠️ Respuesta inesperada, asumiendo estructura:', dataAlert);
-            // Intentar convertir a array
-            if (typeof dataAlert === 'object') {
-                alertas = [dataAlert];
+        try {
+            console.log('🔔 Cargando alertas desde API...');
+            const resAlert = await fetch(`${this.backendUrl}/api/alertas`);
+            const dataAlert = await resAlert.json();
+
+            console.log('📊 Respuesta API /alertas:', dataAlert);
+
+            // 🚨 CORRECCIÓN CRÍTICA: Manejar diferentes formatos de respuesta
+            let alertas = [];
+
+            if (Array.isArray(dataAlert)) {
+                // Si la respuesta es directamente un array
+                alertas = dataAlert;
+                console.log('✅ Alertas como array directo:', alertas.length);
+            } else if (dataAlert && Array.isArray(dataAlert.alertas)) {
+                // Si la respuesta tiene propiedad .alertas
+                alertas = dataAlert.alertas;
+                console.log('✅ Alertas en propiedad .alertas:', alertas.length);
+            } else if (dataAlert && dataAlert.alertas === undefined) {
+                // Si la respuesta es un objeto pero sin .alertas
+                console.warn('⚠️ Respuesta inesperada, asumiendo estructura:', dataAlert);
+                // Intentar convertir a array
+                if (typeof dataAlert === 'object') {
+                    alertas = [dataAlert];
+                }
             }
+
+            console.log(`📈 Total alertas procesadas: ${alertas.length}`);
+
+            if (alertas.length > 0) {
+                console.log('📋 Primeras 2 alertas:', alertas.slice(0, 2));
+            }
+
+            // ACTUALIZAR CONTADORES (ESTO ES LO QUE FALTA)
+            this.actualizarContadoresAlertas(alertas.length);
+
+            // Renderizar lista
+            this.renderizarListaAlertas(alertas);
+
+        } catch (e) {
+            console.error("❌ Error cargando alertas:", e);
+            // Poner en 0 si hay error
+            this.actualizarContadoresAlertas(0);
         }
-        
-        console.log(`📈 Total alertas procesadas: ${alertas.length}`);
-        
-        if (alertas.length > 0) {
-            console.log('📋 Primeras 2 alertas:', alertas.slice(0, 2));
-        }
-        
-        // ACTUALIZAR CONTADORES (ESTO ES LO QUE FALTA)
-        this.actualizarContadoresAlertas(alertas.length);
-        
-        // Renderizar lista
-        this.renderizarListaAlertas(alertas);
-        
-    } catch (e) {
-        console.error("❌ Error cargando alertas:", e);
-        // Poner en 0 si hay error
-        this.actualizarContadoresAlertas(0);
     }
-}
 
     // 🆕 NUEVA FUNCIÓN PARA ACTUALIZAR CONTADORES
     actualizarContadoresAlertas(count) {
         console.log(`🔄 Actualizando contador de alertas: ${count}`);
-        
+
         // 1. Actualizar en el modal (KPI)
         const modalMetricAlertas = document.getElementById('modalMetricAlertas');
         if (modalMetricAlertas) {
             modalMetricAlertas.textContent = count;
             console.log(`✅ modalMetricAlertas = ${count}`);
         }
-        
+
         // 2. Actualizar badge del modal
         const modalContadorAlertas = document.getElementById('modalContadorAlertas');
         if (modalContadorAlertas) {
@@ -161,7 +161,7 @@ class ModalMonitoringManager {
             modalContadorAlertas.style.display = count > 0 ? 'inline-block' : 'none';
             console.log(`✅ modalContadorAlertas = ${count}`);
         }
-        
+
         // 3. Actualizar en el panel principal (si existe)
         const totalAlertas = document.getElementById('totalAlertas');
         if (totalAlertas) {
@@ -174,22 +174,22 @@ class ModalMonitoringManager {
         try {
             const resEstado = await fetch(`${this.backendUrl}/api/estado-actual`);
             const dataEstado = await resEstado.json();
-            
+
             // Solo actualizar movimientos desde aquí
             const modalMetricMovimientos = document.getElementById('modalMetricMovimientos');
             if (modalMetricMovimientos && dataEstado.estadisticas) {
                 modalMetricMovimientos.textContent = dataEstado.estadisticas.total_movimientos || 0;
             }
-            
+
             // Estado de conexión
             const modalMetricEstado = document.getElementById('modalMetricEstado');
             if (modalMetricEstado) {
                 const on = dataEstado.estado_ws_arduino === 'Conectado';
-                modalMetricEstado.innerHTML = on ? 
-                    '<span class="text-success fw-bold">En Línea</span>' : 
+                modalMetricEstado.innerHTML = on ?
+                    '<span class="text-success fw-bold">En Línea</span>' :
                     '<span class="text-danger fw-bold">Offline</span>';
             }
-            
+
         } catch (e) {
             console.error("Error cargando estado:", e);
         }
@@ -210,10 +210,10 @@ class ModalMonitoringManager {
         try {
             const res = await fetch(`${this.backendUrl}/api/resumen-maniobras`);
             const data = await res.json();
-            
+
             // Actualizar estadísticas rápidas
             this.actualizarQuickStats(data);
-            
+
         } catch (e) {
             console.error("Error cargando resumen maniobras:", e);
         }
@@ -251,37 +251,38 @@ class ModalMonitoringManager {
 
             let badgeColor = 'bg-secondary';
             let tipoTexto = mov.tipo_ejecucion || 'Manual';
-            
+
             if (tipoTexto === 'manual') badgeColor = 'bg-primary';
             if (tipoTexto === 'demo') badgeColor = 'bg-info text-dark';
             if (tipoTexto === 'automatica') { badgeColor = 'bg-danger'; tipoTexto = 'Evasión'; }
 
             let icon = 'fa-circle';
             const txt = (mov.status_texto || '').toLowerCase();
-            
+
             if (txt.includes('adelante')) icon = 'fa-arrow-up';
             else if (txt.includes('atras') || txt.includes('atrás')) icon = 'fa-arrow-down';
             else if (txt.includes('giro')) icon = 'fa-sync';
             else if (txt.includes('vuelta')) icon = 'fa-share';
             else if (txt.includes('detener')) icon = 'fa-stop-circle';
 
+            // CAMBIALA POR (cambia text-muted por text-white):
             html += `
-                <tr>
-                    <td>
-                        <span style="color: var(--accent-cyan); width: 25px; display:inline-block; text-align:center;">
-                            <i class="fas ${icon}"></i>
-                        </span> 
-                        <span class="text-white fw-bold">${mov.status_texto}</span>
-                    </td>
-                    <td>
-                        <span class="badge ${badgeColor} rounded-pill" style="font-size: 0.7rem; font-weight: normal;">
-                            ${tipoTexto.toUpperCase()}
-                        </span>
-                    </td>
-                    <td class="text-white-50">${mov.duracion_segundos}s</td>
-                    <td class="text-end text-muted small" style="font-family: monospace;">${hora}</td>
-                </tr>
-            `;
+    <tr>
+        <td>
+            <span style="color: var(--accent-cyan); width: 25px; display:inline-block; text-align:center;">
+                <i class="fas ${icon}"></i>
+            </span> 
+            <span class="text-white fw-bold">${mov.status_texto}</span>
+        </td>
+        <td>
+            <span class="badge ${badgeColor} rounded-pill" style="font-size: 0.7rem; font-weight: normal;">
+                ${tipoTexto.toUpperCase()}
+            </span>
+        </td>
+        <td class="text-white-50">${mov.duracion_segundos}s</td>
+        <td class="text-end text-white small" style="font-family: monospace;">${hora}</td>
+    </tr>
+`;
         });
 
         html += '</tbody></table></div>';
@@ -291,7 +292,7 @@ class ModalMonitoringManager {
     renderizarListaAlertas(alertas) {
         const container = document.getElementById('modalAlertasContainer');
         if (!container) return;
-        
+
         if (!alertas || alertas.length === 0) {
             container.innerHTML = '<div class="text-center text-white-50 py-4"><i class="fas fa-check-circle me-2"></i>Sin alertas de obstáculos</div>';
             return;
@@ -300,7 +301,7 @@ class ModalMonitoringManager {
         // Mapa de tipos de obstáculo (de tu BD)
         const mapaBD = {
             1: "Adelante",
-            2: "Adelante-Izquierda", 
+            2: "Adelante-Izquierda",
             3: "Adelante-Derecha",
             4: "Adelante-Izquierda-Derecha",
             5: "Retrocede"
@@ -315,14 +316,14 @@ class ModalMonitoringManager {
                         const dateStr = a.fecha_hora.includes('Z') ? a.fecha_hora : a.fecha_hora + 'Z';
                         const d = new Date(dateStr);
                         if (!isNaN(d.getTime())) {
-                            fecha = d.toLocaleTimeString('es-MX', { 
-                                hour: '2-digit', 
+                            fecha = d.toLocaleTimeString('es-MX', {
+                                hour: '2-digit',
                                 minute: '2-digit',
                                 second: '2-digit'
                             });
                         }
                     }
-                } catch(e) {
+                } catch (e) {
                     fecha = '--:--';
                 }
             }
@@ -353,7 +354,7 @@ class ModalMonitoringManager {
     inicializarGrafico() {
         const ctx = document.getElementById('modalActividadChart');
         if (!ctx) return;
-        
+
         // Destruir gráfico anterior si existe
         if (this.chart) {
             this.chart.destroy();
@@ -361,14 +362,14 @@ class ModalMonitoringManager {
 
         this.chart = new Chart(ctx, {
             type: 'line',
-            data: { 
-                labels: [], 
-                datasets: [{ 
-                    label: 'Actividad', 
-                    data: [], 
-                    borderColor: '#ff2d95', 
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Actividad',
+                    data: [],
+                    borderColor: '#ff2d95',
                     backgroundColor: 'rgba(255, 45, 149, 0.1)',
-                    tension: 0.4, 
+                    tension: 0.4,
                     fill: true,
                     borderWidth: 2,
                     pointBackgroundColor: '#ff2d95',
@@ -376,14 +377,14 @@ class ModalMonitoringManager {
                     pointBorderWidth: 2,
                     pointRadius: 4,
                     pointHoverRadius: 6
-                }] 
+                }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { 
-                    legend: { 
-                        display: false 
+                plugins: {
+                    legend: {
+                        display: false
                     },
                     tooltip: {
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -394,24 +395,24 @@ class ModalMonitoringManager {
                     }
                 },
                 scales: {
-                    x: { 
-                        grid: { 
+                    x: {
+                        grid: {
                             color: 'rgba(255,255,255,0.1)',
                             borderColor: 'rgba(255,255,255,0.1)'
-                        }, 
-                        ticks: { 
+                        },
+                        ticks: {
                             color: '#aaa',
                             font: {
                                 size: 11
                             }
                         }
                     },
-                    y: { 
-                        grid: { 
+                    y: {
+                        grid: {
                             color: 'rgba(255,255,255,0.1)',
                             borderColor: 'rgba(255,255,255,0.1)'
-                        }, 
-                        ticks: { 
+                        },
+                        ticks: {
                             color: '#aaa',
                             font: {
                                 size: 11
@@ -442,13 +443,13 @@ class ModalMonitoringManager {
             this.chart.data.datasets[0].data = d.movimientos_por_tipo.map(x => x.cantidad);
             this.chart.data.datasets[0].label = 'Movimientos por Tipo';
         }
-        
+
         this.chart.update('none');
     }
 
-    cambiarVistaGrafico(v) { 
-        this.estadoApp.vistaGrafico = v; 
-        this.actualizarGrafico(); 
+    cambiarVistaGrafico(v) {
+        this.estadoApp.vistaGrafico = v;
+        this.actualizarGrafico();
     }
 }
 
