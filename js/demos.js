@@ -2,6 +2,7 @@ class DemoManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500'; 
         this.progresoElement = null;
+        this.notificationManager = null;
         
         this.demoActual = {
             id: null,
@@ -12,6 +13,13 @@ class DemoManager {
 
         document.addEventListener('DOMContentLoaded', () => {
             this.cargarDemos();
+            
+            // Inicializar notification manager
+            setTimeout(() => {
+                if (window.notificationManager) {
+                    this.notificationManager = window.notificationManager;
+                }
+            }, 500);
         });
     }
 
@@ -29,6 +37,11 @@ class DemoManager {
 
     async ejecutarCircuitoCuadrado() {
         if(!confirm("¿Iniciar secuencia CUADRADO?\nEl carrito avanzará y girará 4 veces.")) return;
+
+        // Notificar inicio
+        if (window.notificationManager) {
+            window.notificationManager.demoIniciada("Circuito Cuadrado", 8);
+        }
 
         const velRecta = this.getVelocidadActual();
         const velGiro = Math.max(velRecta, 200); 
@@ -55,6 +68,11 @@ class DemoManager {
     async ejecutarZigZag() {
         if(!confirm("¿Iniciar secuencia ZIG-ZAG?")) return;
 
+        // Notificar inicio
+        if (window.notificationManager) {
+            window.notificationManager.demoIniciada("Zig-Zag Dinámico", 5);
+        }
+
         const vel = this.getVelocidadActual();
         const velCurva = vel < 150 ? 160 : vel; 
 
@@ -71,7 +89,10 @@ class DemoManager {
 
     async crearYEjecutarDemoTemporal(nombre, movimientos) {
         try {
-            this.mostrarNotificacion(`Generando ${nombre}...`, 'info');
+            // Notificar creación
+            if (window.notificationManager) {
+                window.notificationManager.showInfo('🔄 Generando Demo', `Creando "${nombre}"...`);
+            }
 
             const responseCrear = await fetch(`${this.backendUrl}/api/crear-demo`, {
                 method: 'POST',
@@ -86,15 +107,26 @@ class DemoManager {
             const dataCrear = await responseCrear.json();
 
             if (dataCrear.success) {
+                // Notificar demo creada
+                if (window.notificationManager) {
+                    window.notificationManager.showSuccess('✅ Demo Creada', `"${nombre}" lista para ejecutar`);
+                }
+                
                 this.ejecutarDemo(dataCrear.demo_id, nombre);
                 this.cargarDemos();
             } else {
-                this.mostrarNotificacion('Error: ' + (dataCrear.error || 'Desconocido'), 'danger');
+                // Notificar error
+                if (window.notificationManager) {
+                    window.notificationManager.showDanger('❌ Error', 'No se pudo crear la demo: ' + (dataCrear.error || 'Desconocido'));
+                }
             }
 
         } catch (error) {
             console.error(error);
-            this.mostrarNotificacion('Error de conexión', 'danger');
+            // Notificar error de conexión
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error de Conexión', 'No se pudo crear la demo');
+            }
         }
     }
 
@@ -104,6 +136,11 @@ class DemoManager {
 
     async ejecutarDemo(id, nombre) {
         this.inicializarUIProgreso(nombre, "?");
+        
+        // Notificar inicio de ejecución
+        if (window.notificationManager) {
+            window.notificationManager.demoIniciada(nombre, "?");
+        }
         
         try {
             const res = await fetch(`${this.backendUrl}/api/ejecutar-demo/${id}`, {
@@ -115,13 +152,24 @@ class DemoManager {
             if (data.success) {
                 const contador = this.progresoElement.querySelector('.contador-movimientos');
                 if(contador) contador.textContent = `0/${data.total_movimientos}`;
+                
+                // Notificar demo programada
+                if (window.notificationManager) {
+                    window.notificationManager.showSuccess('✅ Demo Programada', `"${data.nombre}" en ejecución (${data.total_movimientos} pasos)`);
+                }
             } else {
-                this.mostrarNotificacion('Error: ' + (data.error || 'Desconocido'), 'danger');
+                // Notificar error
+                if (window.notificationManager) {
+                    window.notificationManager.demoFallida(nombre, data.error || 'Error desconocido');
+                }
                 this.ocultarProgreso();
             }
         } catch (error) {
             console.error(error);
-            this.mostrarNotificacion('Error de conexión', 'danger');
+            // Notificar error de conexión
+            if (window.notificationManager) {
+                window.notificationManager.demoFallida(nombre, 'Error de conexión');
+            }
             this.ocultarProgreso();
         }
     }
@@ -161,7 +209,8 @@ class DemoManager {
             }
             setTimeout(() => this.ocultarProgreso(), 3000);
         }
-        this.mostrarNotificacion(`✅ Secuencia "${data.nombre}" finalizada`, 'success');
+        
+        // Notificar demo completada (esta notificación también viene del WebSocket en control.js)
     }
 
     inicializarUIProgreso(nombre, total) {
@@ -286,12 +335,24 @@ class DemoManager {
         };
         this.demoActual.movimientos.push(movimiento);
         this.actualizarListaMovimientos();
+        
+        // Notificar movimiento agregado
+        if (window.notificationManager) {
+            const nombreMov = this.obtenerNombreMovimiento(statusClave);
+            window.notificationManager.showInfo('➕ Movimiento Agregado', `${nombreMov} (${duracion}s @ ${velocidad})`);
+        }
     }
 
     eliminarMovimiento(index) {
         if (index >= 0 && index < this.demoActual.movimientos.length) {
+            const movEliminado = this.demoActual.movimientos[index];
             this.demoActual.movimientos.splice(index, 1);
             this.actualizarListaMovimientos();
+            
+            // Notificar movimiento eliminado
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('➖ Movimiento Eliminado', `${movEliminado.nombre} removido de la secuencia`);
+            }
         }
     }
 
@@ -323,7 +384,10 @@ class DemoManager {
     async guardarDemo() {
         const nombre = document.getElementById('demoNombre')?.value.trim();
         if (!nombre || this.demoActual.movimientos.length === 0) {
-            this.mostrarNotificacion('Nombre y al menos un movimiento son requeridos', 'warning');
+            // Notificar error de validación
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('⚠️ Datos Incompletos', 'Nombre y al menos un movimiento son requeridos');
+            }
             return;
         }
 
@@ -332,6 +396,11 @@ class DemoManager {
                 ? `${this.backendUrl}/api/demo/${this.demoActual.id}` 
                 : `${this.backendUrl}/api/crear-demo`;
             const method = this.demoActual.id ? 'PUT' : 'POST';
+
+            // Notificar guardando
+            if (window.notificationManager) {
+                window.notificationManager.showInfo('💾 Guardando...', `Creando demo "${nombre}"...`);
+            }
 
             const response = await fetch(url, {
                 method: method,
@@ -346,15 +415,21 @@ class DemoManager {
             const data = await response.json();
 
             if (data.success) {
-                this.mostrarNotificacion('Demo guardada correctamente', 'success');
+                // Notificar éxito (esta notificación también viene del WebSocket)
                 bootstrap.Modal.getInstance(document.getElementById('demoEditorModal')).hide();
                 this.cargarDemos();
             } else {
-                this.mostrarNotificacion('Error al guardar: ' + (data.error || 'Desconocido'), 'danger');
+                // Notificar error
+                if (window.notificationManager) {
+                    window.notificationManager.showDanger('❌ Error al Guardar', 'No se pudo guardar la demo: ' + (data.error || 'Desconocido'));
+                }
             }
         } catch (e) {
             console.error("Error guardando demo:", e);
-            this.mostrarNotificacion('Error de conexión al guardar', 'danger');
+            // Notificar error de conexión
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error de Conexión', 'No se pudo guardar la demo');
+            }
         }
     }
 
@@ -389,11 +464,19 @@ class DemoManager {
                     
                     const modal = new bootstrap.Modal(document.getElementById('demoEditorModal'));
                     modal.show();
+                    
+                    // Notificar edición
+                    if (window.notificationManager) {
+                        window.notificationManager.showInfo('✏️ Editando Demo', `Editando "${this.demoActual.nombre}"`);
+                    }
                 }
             }
         } catch(e) { 
             console.error("Error editando demo:", e);
-            this.mostrarNotificacion('Error al cargar demo', 'danger');
+            // Notificar error
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error', 'No se pudo cargar la demo para editar');
+            }
         }
     }
 
@@ -401,20 +484,31 @@ class DemoManager {
         if(!confirm("¿Estás seguro de eliminar esta secuencia?")) return;
         
         try {
+            // Notificar eliminando
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('🗑️ Eliminando...', 'Eliminando secuencia...');
+            }
+
             const response = await fetch(`${this.backendUrl}/api/demo/${id}`, { 
                 method: 'DELETE' 
             });
             const data = await response.json();
             
             if (data.success) {
-                this.mostrarNotificacion('Secuencia eliminada', 'info');
+                // Notificación de éxito viene del WebSocket
                 this.cargarDemos();
             } else {
-                this.mostrarNotificacion('Error al eliminar', 'danger');
+                // Notificar error
+                if (window.notificationManager) {
+                    window.notificationManager.showDanger('❌ Error', 'No se pudo eliminar la secuencia');
+                }
             }
         } catch (e) {
             console.error("Error eliminando demo:", e);
-            this.mostrarNotificacion('Error de conexión', 'danger');
+            // Notificar error de conexión
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error de Conexión', 'No se pudo eliminar la demo');
+            }
         }
     }
 
@@ -423,6 +517,15 @@ class DemoManager {
     mostrarNotificacion(msg, type) {
         if (window.controlManager && typeof window.controlManager.mostrarNotificacion === 'function') {
             window.controlManager.mostrarNotificacion(msg, type);
+        } else if (window.notificationManager) {
+            // Usar el nuevo sistema de notificaciones
+            const methodName = `show${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            if (typeof window.notificationManager[methodName] === 'function') {
+                const title = type === 'success' ? '✅ Éxito' : 
+                             type === 'danger' ? '❌ Error' : 
+                             type === 'warning' ? '⚠️ Advertencia' : 'ℹ️ Información';
+                window.notificationManager[methodName](title, msg);
+            }
         } else {
             alert(msg);
         }

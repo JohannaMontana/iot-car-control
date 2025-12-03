@@ -2,6 +2,7 @@ class ControlManager {
     constructor() {
         this.backendUrl = 'http://54.147.92.50:5500'; 
         this.socket = null;
+        this.notificationManager = null;
         
         document.addEventListener('DOMContentLoaded', () => this.init());
     }
@@ -12,24 +13,70 @@ class ControlManager {
         this.socket.on('connect', () => {
             this.actualizarUIConexion(true);
             this.updateServerLight(true);
+            
+            // Notificar conexión exitosa
+            if (window.notificationManager) {
+                window.notificationManager.showSuccess('🔗 Conectado', 'Conexión WebSocket establecida con el servidor');
+            }
         });
         
         this.socket.on('disconnect', () => {
             this.actualizarUIConexion(false);
             this.updateServerLight(false);
+            
+            // Notificar desconexión
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('🔌 Desconectado', 'Conexión WebSocket perdida');
+            }
         });
 
-        this.socket.on('movimiento_agregado', () => {
+        this.socket.on('movimiento_agregado', (data) => {
             setTimeout(() => this.cargarHistorialRapido(), 500);
             this.cargarTotalMovimientos(); // Actualizar contador
+            
+            // Notificar movimiento registrado en BD
+            if (window.notificationManager) {
+                const movimiento = this.obtenerNombreMovimiento(data.status_clave);
+                window.notificationManager.showSuccess(
+                    '✅ Movimiento Registrado', 
+                    `${movimiento} guardado en historial`
+                );
+            }
         });
 
-        this.socket.on('alerta_obstaculo', (data) => this.mostrarAlertaObstaculo(data));
+        this.socket.on('alerta_obstaculo', (data) => {
+            this.mostrarAlertaObstaculo(data);
+            
+            // Notificar alerta de obstáculo
+            if (window.notificationManager) {
+                const tipos = {
+                    1: 'Obstáculo frontal',
+                    2: 'Obstáculo lateral izquierdo',
+                    3: 'Obstáculo lateral derecho',
+                    4: 'Obstáculo trasero',
+                    5: 'Obstáculo múltiple'
+                };
+                const tipo = tipos[data.tipo_obstaculo] || 'Obstáculo detectado';
+                
+                window.notificationManager.showDanger(
+                    '⚠️ ¡Alerta de Obstáculo!',
+                    `${tipo} a ${data.distancia || '?'}cm`
+                );
+            }
+        });
 
         // ESCUCHAR EVENTOS DE DEMO
         this.socket.on('demo_progreso', (data) => {
             if (window.demoManager) {
                 window.demoManager.actualizarProgresoDemo(data);
+            }
+            
+            // Notificar progreso de demo
+            if (window.notificationManager) {
+                window.notificationManager.showInfo(
+                    `↻ Demo Progreso (${data.movimiento_actual}/${data.total_movimientos})`,
+                    `Ejecutando: ${data.nombre_movimiento}`
+                );
             }
         });
 
@@ -37,7 +84,42 @@ class ControlManager {
             if (window.demoManager) {
                 window.demoManager.demoCompletada(data);
             }
+            
+            // Notificar demo completada
+            if (window.notificationManager) {
+                window.notificationManager.showSuccess(
+                    '🎉 Demo Completada',
+                    `"${data.nombre}" finalizada exitosamente`
+                );
+            }
         });
+
+        this.socket.on('demo_creada', (data) => {
+            // Notificar demo creada
+            if (window.notificationManager) {
+                window.notificationManager.showSuccess(
+                    '📁 Demo Creada',
+                    `"${data.nombre}" guardada correctamente`
+                );
+            }
+        });
+
+        this.socket.on('demo_eliminada', () => {
+            // Notificar demo eliminada
+            if (window.notificationManager) {
+                window.notificationManager.showWarning(
+                    '🗑️ Demo Eliminada',
+                    'Secuencia eliminada del sistema'
+                );
+            }
+        });
+
+        // Inicializar notification manager
+        setTimeout(() => {
+            if (window.notificationManager) {
+                this.notificationManager = window.notificationManager;
+            }
+        }, 500);
 
         this.actualizarEstado();
         this.cargarHistorialRapido();
@@ -64,6 +146,16 @@ class ControlManager {
 
     async moverCarrito(status) {
         try {
+            // Notificar inmediatamente al usuario
+            if (window.notificationManager) {
+                const movimiento = this.obtenerNombreMovimiento(status);
+                const velocidad = this.getVelocidad();
+                window.notificationManager.showInfo(
+                    '🚀 Enviando Movimiento',
+                    `${movimiento} (Vel: ${velocidad})...`
+                );
+            }
+            
             await fetch(`${this.backendUrl}/api/movimiento`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
@@ -74,29 +166,65 @@ class ControlManager {
                     timestamp_local: this.getLocalTimestamp()
                 })
             });
+            
+            // Notificación de éxito ya se maneja por WebSocket (movimiento_agregado)
         } catch (e) { 
             console.error("Error moviendo carrito:", e);
-            this.mostrarNotificacion('Error de conexión', 'danger');
+            
+            // Notificar error
+            if (window.notificationManager) {
+                const movimiento = this.obtenerNombreMovimiento(status);
+                window.notificationManager.showDanger(
+                    '❌ Error de Conexión',
+                    `${movimiento} - No se pudo conectar con el servidor`
+                );
+            }
         }
     }
 
     async detenerCarrito() {
         try { 
+            // Notificar
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('⏹️ Deteniendo', 'Enviando comando de detención...');
+            }
+            
             await fetch(`${this.backendUrl}/api/detener`, { method: 'POST' }); 
+            
+            // Notificar éxito de detención
+            setTimeout(() => {
+                if (window.notificationManager) {
+                    window.notificationManager.showSuccess('✅ Robot Detenido', 'Movimiento interrumpido correctamente');
+                }
+            }, 300);
+            
         } catch(e){
             console.error("Error deteniendo carrito:", e);
+            
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error', 'No se pudo detener el carro');
+            }
         }
     }
 
     async simularObstaculo() {
         try {
+            // Notificar simulación
+            if (window.notificationManager) {
+                window.notificationManager.showWarning('⚠️ Simulando Obstáculo', 'Enviando señal de prueba...');
+            }
+            
             await fetch(`${this.backendUrl}/api/obstaculo`, {
                 method: 'POST', 
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ status_clave: 1, dispositivo_id: 1 })
             });
+            
         } catch(e) {
             console.error("Error simulando obstáculo:", e);
+            if (window.notificationManager) {
+                window.notificationManager.showDanger('❌ Error', 'No se pudo simular obstáculo');
+            }
         }
     }
 
@@ -281,11 +409,17 @@ class ControlManager {
 
     obtenerNombreMovimiento(id) {
         const movimientos = {
-            1: "Adelante", 2: "Atrás", 3: "Detener",
-            4: "Adelante-Derecha", 5: "Adelante-Izquierda", 
-            6: "Atrás-Derecha", 7: "Atrás-Izquierda",
-            8: "Giro Derecha", 9: "Giro Izquierda",
-            10: "Vuelta 360° Derecha", 11: "Vuelta 360° Izquierda"
+            1: "Adelante", 
+            2: "Atrás", 
+            3: "Detener",
+            4: "Adelante-Derecha", 
+            5: "Adelante-Izquierda", 
+            6: "Atrás-Derecha", 
+            7: "Atrás-Izquierda",
+            8: "Giro Derecha", 
+            9: "Giro Izquierda",
+            10: "Vuelta 360° Derecha", 
+            11: "Vuelta 360° Izquierda"
         };
         return movimientos[id] || `Mov ${id}`;
     }
